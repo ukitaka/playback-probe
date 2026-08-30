@@ -1,5 +1,7 @@
 # PlaybackProbe
 
+[![CI](https://github.com/ukitaka/playback-probe/actions/workflows/ci.yml/badge.svg)](https://github.com/ukitaka/playback-probe/actions/workflows/ci.yml)
+
 Verify from a UI test that a video player really stopped.
 
 When a modal, an advertisement or a system alert covers a video player, the
@@ -439,6 +441,23 @@ audio oracles carry it.
 
 This does not generalise to every ad SDK. It is evidence that the approach
 survives one real one, and a template for checking another.
+
+## Continuous integration
+
+Every push runs the unit tests, the probe library check and lint, then the
+demo's UI tests on a simulator — the same `Scripts/run-demo-tests.sh` a person
+runs, so CI cannot drift from the documented path.
+
+The audio oracle does not run there, and deliberately so. Capture permission is
+granted only interactively, and a simulator booted without Simulator.app makes
+no sound at all, so a tap on a headless runner would report silence for a video
+that is playing. Those tests skip themselves when no tap is attached. The state,
+time and video oracles all run, including through the hub.
+
+The formatter and linter are pinned to exact versions in the workflow rather
+than taken from the runner image, which ships its own. A formatter that changes
+version changes its default rules, and CI failing on code nobody touched helps
+no one. Bumping either is a deliberate commit that carries its reformatting.
 
 ## Known limits
 
