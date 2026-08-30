@@ -41,15 +41,38 @@ jobs:
       - name: Verify the probe library
         run: Scripts/verify-probe-dylib.sh "$(swift build --show-bin-path)/libPlaybackProbe.dylib"
 
-      # SwiftFormat is preinstalled on the runner image; SwiftLint is not.
-      - name: Install SwiftLint
-        run: brew install swiftlint
+      # Both are pinned rather than taken from the runner image or from
+      # Homebrew. A formatter that changes version changes its default rules,
+      # and a lint failure that appears without anyone touching the code is a
+      # waste of everyone's afternoon. Bumping these is a deliberate commit
+      # that carries the reformatting with it.
+      - name: Install the pinned formatter and linter
+        env:
+          SWIFTFORMAT_VERSION: 0.58.7
+          SWIFTLINT_VERSION: 0.62.2
+        run: |
+          mkdir -p "$RUNNER_TEMP/tools"
+          curl -fsSL -o "$RUNNER_TEMP/swiftformat.zip" \
+            "https://github.com/nicklockwood/SwiftFormat/releases/download/$SWIFTFORMAT_VERSION/swiftformat.zip"
+          unzip -qo "$RUNNER_TEMP/swiftformat.zip" -d "$RUNNER_TEMP/swiftformat"
+          find "$RUNNER_TEMP/swiftformat" -name swiftformat -type f -perm +111 \
+            -exec cp {} "$RUNNER_TEMP/tools/swiftformat" \;
+          curl -fsSL -o "$RUNNER_TEMP/swiftlint.zip" \
+            "https://github.com/realm/SwiftLint/releases/download/$SWIFTLINT_VERSION/portable_swiftlint.zip"
+          unzip -qo "$RUNNER_TEMP/swiftlint.zip" -d "$RUNNER_TEMP/swiftlint"
+          cp "$RUNNER_TEMP/swiftlint/swiftlint" "$RUNNER_TEMP/tools/swiftlint"
+          chmod +x "$RUNNER_TEMP/tools/"*
+          echo "$RUNNER_TEMP/tools" >> "$GITHUB_PATH"
 
       - name: Check formatting
-        run: swiftformat --lint .
+        run: |
+          swiftformat --version
+          swiftformat --lint .
 
       - name: Lint
-        run: swiftlint --strict
+        run: |
+          swiftlint --version
+          swiftlint --strict
 
   ui-tests:
     name: UI tests on the simulator

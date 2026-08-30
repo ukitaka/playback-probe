@@ -38,7 +38,10 @@ echo "==> Building the hub"
 swift build --package-path "$root" --product playback-probe-hub
 
 echo "==> Starting the hub on port $port"
-swift run --package-path "$root" playback-probe-hub --port "$port" "${audio_arguments[@]}" >"$log" 2>&1 &
+# Expanded through the ${x[@]+...} form: under `set -u`, bash 3.2 — which is
+# what macOS ships — treats an empty array as unbound and aborts.
+swift run --package-path "$root" playback-probe-hub --port "$port" \
+    ${audio_arguments[@]+"${audio_arguments[@]}"} >"$log" 2>&1 &
 hub_pid=$!
 
 # Wait for the line the hub prints once it is listening, rather than sleeping a
