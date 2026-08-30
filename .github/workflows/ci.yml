@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Build, unit tests and lint
+    # macOS 26 on Apple silicon, which ships the Xcode this project is
+    # developed against. Free for public repositories.
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # Printed rather than pinned. Pinning a version breaks the day the image
+      # drops it; printing means a failure caused by a toolchain change is
+      # obvious from the log.
+      - name: Report the toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Build
+        run: swift build
+
+      - name: Unit tests
+        run: swift test
+
+      # The probe starts from a load-time constructor that nothing references.
+      # If the linker ever drops it the library still loads, no observer is
+      # registered, and every oracle reports "not playing" — a silent failure
+      # that would look like a passing test suite.
+      - name: Verify the probe library
+        run: Scripts/verify-probe-dylib.sh "$(swift build --show-bin-path)/libPlaybackProbe.dylib"
+
+      # SwiftFormat is preinstalled on the runner image; SwiftLint is not.
+      - name: Install SwiftLint
+        run: brew install swiftlint
+
+      - name: Check formatting
+        run: swiftformat --lint .
+
+      - name: Lint
+        run: swiftlint --strict
+
+  ui-tests:
+    name: UI tests on the simulator
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Report the toolchain
+        run: |
+          xcodebuild -version
+          xcrun simctl list devices available | grep -A5 'iOS'
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # The audio oracle is deliberately not exercised here. It needs audio
+      # capture permission, which macOS only grants interactively, and a
+      # simulator booted without Simulator.app produces no sound at all. Those
+      # tests skip on their own rather than failing.
+      - name: Run the demo's UI tests
+        env:
+          PLAYBACK_PROBE_DESTINATION: platform=iOS Simulator,name=iPhone 17,OS=latest
+        run: Scripts/run-demo-tests.sh -resultBundlePath TestResults.xcresult
+
+      - name: Upload the test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults.xcresult
+          retention-days: 7
