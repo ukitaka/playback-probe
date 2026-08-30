@@ -63,22 +63,12 @@ struct HubRouter {
     }
 
     private func health() -> HTTPResponse {
-        struct Payload: Encodable {
-            var isReachable: Bool
-            var audioTapAttached: Bool
-            var audioTapError: String?
-
-            enum CodingKeys: String, CodingKey {
-                case isReachable = "ok"
-                case audioTapAttached
-                case audioTapError
-            }
-        }
-        guard let data = try? encoder.encode(Payload(
+        let report = HealthReport(
             isReachable: true,
             audioTapAttached: store.isAudioTapAttached,
             audioTapError: store.audioTapError
-        )) else {
+        )
+        guard let data = try? encoder.encode(report) else {
             return .error(400, "could not encode the health report")
         }
         return .json(data)
@@ -201,5 +191,22 @@ enum AnyEncodableValue: Encodable, Sendable {
         case let .bool(value): try container.encode(value)
         case let .number(value): try container.encode(value)
         }
+    }
+}
+
+/// What the hub says about itself.
+///
+/// A tap that was refused is reported here rather than only to whoever is
+/// sitting in front of the machine, so an unattended run can say why the audio
+/// oracle is missing instead of quietly having no opinion.
+private struct HealthReport: Encodable {
+    var isReachable: Bool
+    var audioTapAttached: Bool
+    var audioTapError: String?
+
+    enum CodingKeys: String, CodingKey {
+        case isReachable = "ok"
+        case audioTapAttached
+        case audioTapError
     }
 }

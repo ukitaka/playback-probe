@@ -87,7 +87,11 @@ final class CaptureModel {
         do {
             try hub.start()
             hubState = .listening(port: hub.port ?? 0)
-            logger.notice("Hub listening on \(hubURL, privacy: .public)")
+            // Bound to a local: the logging macro captures its arguments in an
+            // autoclosure, which needs an explicit `self` that the formatter
+            // then removes again.
+            let address = hubURL
+            logger.notice("Hub listening on \(address, privacy: .public)")
         } catch {
             hubState = .failed("\(error)")
             logger.error("Hub could not start: \(error, privacy: .public)")
