@@ -45,6 +45,8 @@ targets:
         product: PlaybackProbe
       - package: PlaybackProbe
         product: PlaybackProbeTestSupport
+      - package: PlaybackProbe
+        product: PlaybackProbeXCTest
 
 schemes:
   PlaybackProbeDemo:

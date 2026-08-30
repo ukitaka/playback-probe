@@ -19,6 +19,9 @@ let package = Package(
         // Helpers for the test side: locating the injected library, building
         // the launch environment and reading back what the probe recorded.
         .library(name: "PlaybackProbeTestSupport", targets: ["PlaybackProbeTestSupport"]),
+        // XCTest assertions built on the helpers above. Separate so that
+        // PlaybackProbeTestSupport stays usable without XCTest.
+        .library(name: "PlaybackProbeXCTest", targets: ["PlaybackProbeXCTest"]),
     ],
     targets: [
         // C shim holding the `__attribute__((constructor))` entry point.
@@ -30,6 +33,10 @@ let package = Package(
         .target(name: "PlaybackProbeSchema"),
         .target(name: "PlaybackProbe", dependencies: ["ProbeBootstrap", "PlaybackProbeSchema"]),
         .target(name: "PlaybackProbeTestSupport", dependencies: ["PlaybackProbeSchema"]),
+        .target(
+            name: "PlaybackProbeXCTest",
+            dependencies: ["PlaybackProbeSchema", "PlaybackProbeTestSupport"]
+        ),
         .testTarget(
             name: "PlaybackProbeTests",
             dependencies: ["PlaybackProbeSchema", "PlaybackProbeTestSupport"]

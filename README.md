@@ -54,11 +54,13 @@ single-oracle setup lets one of these through.
 
 ## Usage
 
-Link two products into the UI test target: `PlaybackProbe`, the dynamic library
-that gets injected, and `PlaybackProbeTestSupport`, the helpers that inject it.
+Link three products into the UI test target: `PlaybackProbe`, the dynamic
+library that gets injected, plus `PlaybackProbeTestSupport` and
+`PlaybackProbeXCTest`, which inject it and assert on what it saw.
 
 ```swift
 import PlaybackProbeTestSupport
+import PlaybackProbeXCTest
 
 let logURL = try ProbeLogLocation.makeSharedLogURL()
 let application = XCUIApplication()
@@ -66,6 +68,12 @@ application.launchEnvironment.merge(try ProbeLaunchEnvironment.make(logURL: logU
 application.launch()
 
 let log = ProbeEventLog(url: logURL)
+
+application.buttons["play"].tap()
+XCTAssertPlaybackStarts(log)
+
+application.buttons["show-overlay"].tap()
+XCTAssertPlaybackStops(log, "Playback continued behind the overlay")
 ```
 
 The application under test needs no source changes: dyld runs the library's
@@ -77,12 +85,29 @@ put the library. `ProbeLogLocation` picks a path in the simulator device's
 shared directory, because the application and the test runner have separate
 containers.
 
-Then assert on what the probe recorded:
+### The assertions
 
-```swift
-let events = try log.waitForEvents { $0.events(of: .sample).contains { $0.playerState == .playing } }
-XCTAssertTrue(events.isPlaybackPositionAdvancing())
-```
+Note that none of the above sleeps. Each assertion waits for its own evidence,
+so a test never has to guess how long a state change takes to become visible.
+
+| Assertion | Shape | Passes when |
+|---|---|---|
+| `XCTAssertPlaybackStarts(log)` | waits | Some window of samples shows the player playing *and* the position moving. |
+| `XCTAssertPlaybackStops(log)` | waits | An entire window of samples reports paused *and* the position never moved. |
+| `XCTAssertPlaybackContinues(log)` | watches a window | Playback ran for the whole window. |
+
+`XCTAssertPlaybackContinues` deliberately does not wait. "Still playing" is a
+claim about a stretch of time, and a wait would return the instant it saw a
+single playing sample, which is a weaker claim than the one being made.
+
+Every verdict needs both oracles to agree, which is what makes them worth more
+than reading `timeControlStatus`. A player claiming `paused` while its position
+climbs is not stopped, and a stalled player still claiming `playing` is not
+playing.
+
+For assertions in some other framework, `PlaybackProbeTestSupport` has the same
+logic without XCTest: `waitUntilPlaybackStopped`, `waitUntilPlaybackStarted` and
+`observePlayback(for:)` throw or return a `PlaybackObservation`.
 
 The probe appends observations to `PLAYBACK_PROBE_LOG_PATH` as JSON Lines,
 which the test reads while the application is still running:
@@ -120,7 +145,8 @@ target rather than from the application.
 | Product | Linked into | Purpose |
 |---|---|---|
 | `PlaybackProbe` | the test target, injected into the app | The probe itself. Dynamic, so dyld can load it. |
-| `PlaybackProbeTestSupport` | the test target | Locating the library, building the launch environment, reading the log. |
+| `PlaybackProbeTestSupport` | the test target | Locating the library, building the launch environment, reading the log, reaching a verdict. |
+| `PlaybackProbeXCTest` | the test target | XCTest assertions over the above. Separate so `PlaybackProbeTestSupport` stays usable without XCTest. |
 
 `PlaybackProbeSchema` underneath both holds the wire types and carries no
 platform assumptions, so the planned Android implementation can serve the same
@@ -143,6 +169,10 @@ xcodebuild test -project PlaybackProbeDemo.xcodeproj -scheme PlaybackProbeDemo \
 ```
 
 ## How soon can a test assert?
+
+Short answer: use the assertions above and you do not have to care, because
+they wait. This section is why they are shaped that way, and what to do if you
+build your own.
 
 A test that taps something and immediately asserts "playback stopped" is only
 sound if the stop is already observable. Measured on the demo with
@@ -171,9 +201,10 @@ default it is not: the worst case observed landed 279ms *after* `tap()`
 returned, which is a real flake. This is why `ProbeLaunchEnvironment` uses 200ms
 rather than inheriting the probe's default.
 
-Note the margin at 200ms is only a few milliseconds in the worst case, so a test
-doing something faster than a tap, or running on a slower machine, should either
-drop to 50ms sampling or wait explicitly.
+The margin at 200ms is only a few milliseconds in the worst case, so a test
+doing something faster than a tap, or running on a slower machine, cannot rely
+on it. That is exactly the reasoning `XCTAssertPlaybackStops` removes: it polls
+until the evidence is there rather than assuming it has arrived.
 
 These figures cover the state and time oracles only. The audio oracle will add
 the buffer still draining after a pause, which is a separate and larger delay.

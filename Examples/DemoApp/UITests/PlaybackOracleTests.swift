@@ -1,17 +1,17 @@
 import PlaybackProbeSchema
 import PlaybackProbeTestSupport
+import PlaybackProbeXCTest
 import XCTest
 
 /// Covers the state and time oracles: what the probe reports while the player
 /// is running, and what it reports once something is supposed to have stopped
 /// it.
+///
+/// None of these tests sleep before asserting. The assertions wait for the
+/// evidence themselves, which is the point of the API.
 final class PlaybackOracleTests: XCTestCase {
     private var application: XCUIApplication!
     private var log: ProbeEventLog!
-
-    /// Long enough for several sampling ticks and for the player to settle
-    /// after a state change.
-    private let settlingTime: TimeInterval = 1.5
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -23,74 +23,54 @@ final class PlaybackOracleTests: XCTestCase {
         application.launch()
     }
 
-    func testOraclesReportPlaybackWhilePlaying() throws {
-        startPlayback()
+    func testOraclesReportPlaybackWhilePlaying() {
+        application.buttons[DemoIdentifier.playButton].tap()
 
-        let recent = try samplesFromNow()
-        XCTAssertEqual(recent.last?.playerState, .playing)
-        XCTAssertTrue(
-            recent.isPlaybackPositionAdvancing(),
-            "The playback position should advance while the player is playing"
-        )
+        XCTAssertPlaybackStarts(log)
     }
 
-    func testOverlayThatPausesStopsPlayback() throws {
+    func testPauseStopsPlayback() {
+        startPlayback()
+
+        application.buttons[DemoIdentifier.pauseButton].tap()
+
+        XCTAssertPlaybackStops(log)
+    }
+
+    func testOverlayThatPausesStopsPlayback() {
         startPlayback()
 
         application.buttons[DemoIdentifier.presentCorrectOverlayButton].tap()
 
-        let recent = try samplesFromNow()
-        XCTAssertEqual(recent.last?.playerState, .paused)
-        XCTAssertFalse(
-            recent.isPlaybackPositionAdvancing(),
-            "The playback position should not advance behind the overlay"
-        )
+        XCTAssertPlaybackStops(log, "Playback continued behind the overlay")
     }
 
     /// The bug the toolkit exists to catch. The overlay hides the video, so a
-    /// screenshot cannot tell this apart from the correct case, but the probe
-    /// can.
-    func testOverlayThatForgetsToPauseIsDetected() throws {
+    /// screenshot cannot tell this apart from the correct case.
+    func testOverlayThatForgetsToPauseIsDetected() {
         startPlayback()
 
         application.buttons[DemoIdentifier.presentLeakyOverlayButton].tap()
         XCTAssertTrue(application.buttons[DemoIdentifier.dismissOverlayButton].waitForExistence(timeout: 5))
 
-        let recent = try samplesFromNow()
-        XCTAssertEqual(
-            recent.last?.playerState,
-            .playing,
-            "The demo's leaky overlay is expected to leave the player running"
-        )
-        XCTAssertTrue(
-            recent.isPlaybackPositionAdvancing(),
-            "The demo's leaky overlay is expected to leave the playback position advancing"
-        )
+        XCTAssertPlaybackContinues(log, "The demo's leaky overlay is expected to leave the player running")
+    }
+
+    /// Proves the stop assertion is not vacuous: pointed at the leaky overlay
+    /// it must fail. Without this, an assertion that never fails would look
+    /// exactly like a passing suite.
+    func testStopAssertionFailsWhenPlaybackLeaks() {
+        startPlayback()
+
+        application.buttons[DemoIdentifier.presentLeakyOverlayButton].tap()
+
+        XCTExpectFailure("The leaky overlay leaves the player running, so the stop assertion must fail") {
+            XCTAssertPlaybackStops(log, timeout: 2)
+        }
     }
 
     private func startPlayback() {
         application.buttons[DemoIdentifier.playButton].tap()
-        log.waitForEvents(describedAs: "playback to start") {
-            $0.events(of: .sample).contains { $0.playerState == .playing }
-        }
-    }
-
-    /// Waits out the settling time, then returns only the samples taken after
-    /// this call, so that a previous state cannot leak into the assertion.
-    private func samplesFromNow(
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) throws -> [ProbeEvent] {
-        let cutoff = Date().timeIntervalSince1970
-        Thread.sleep(forTimeInterval: settlingTime)
-        let recent = log.events().samples(since: cutoff)
-        XCTAssertGreaterThanOrEqual(
-            recent.count,
-            2,
-            "Not enough samples to judge whether playback advanced",
-            file: file,
-            line: line
-        )
-        return recent
+        XCTAssertPlaybackStarts(log)
     }
 }
