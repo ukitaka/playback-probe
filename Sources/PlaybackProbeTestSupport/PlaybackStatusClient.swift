@@ -158,12 +158,19 @@ public struct PlaybackStatusClient: Sendable {
 /// What the hub reports about itself.
 public struct HubHealth: Decodable, Sendable {
     public var isReachable: Bool
+    /// Whether the host provides an audio oracle at all. This is what decides
+    /// whether a test can assert on sound; see ``isAudioTapAttached``.
+    public var isAudioTapConfigured: Bool
+    /// Whether a tap is running right now. A host listening to one process
+    /// rather than the whole Mac has nothing to attach to until that process
+    /// exists, so this can be false while the oracle is perfectly available.
     public var isAudioTapAttached: Bool
     /// Why the tap is not running, when something tried and failed.
     public var audioTapError: String?
 
     private enum CodingKeys: String, CodingKey {
         case isReachable = "ok"
+        case isAudioTapConfigured = "audioTapConfigured"
         case isAudioTapAttached = "audioTapAttached"
         case audioTapError
     }

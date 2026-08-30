@@ -21,14 +21,30 @@ import os
 /// tap is created, and only for a signed application bundle, so the host has to
 /// be an app rather than a bare executable.
 public final class AudioLevelTap: @unchecked Sendable {
+    /// What to listen to.
+    public enum Source: Sendable, Equatable {
+        /// Everything the Mac plays. Always works, and hears every other
+        /// application too, so nothing else may make a sound during a test.
+        case systemWide
+        /// Specific audio processes, found through ``AudioProcess``.
+        ///
+        /// An application running in a simulator appears here under its own
+        /// bundle identifier, but only while it runs and with a new object
+        /// each launch, so whoever holds the tap has to follow it.
+        case processes([AudioObjectID])
+    }
+
     private let logger = Logger(subsystem: "com.github.ukitaka.PlaybackProbe", category: "audio")
+    private let source: Source
     private let lock = NSLock()
 
     private var tapID = AudioObjectID.unknown
     private var aggregateDeviceID = AudioObjectID.unknown
     private var ioProcID: AudioDeviceIOProcID?
 
-    public init() {}
+    public init(source: Source = .systemWide) {
+        self.source = source
+    }
 
     deinit {
         stop()
@@ -134,12 +150,12 @@ public final class AudioLevelTap: @unchecked Sendable {
     }
 
     private func makeTapDescription() -> CATapDescription {
-        // System-wide rather than per-process. A simulated application's audio
-        // object only exists while it runs and is recreated on every launch, so
-        // a tap bound to one at start-up would be pointed at nothing by the
-        // time the test relaunches the application. The cost is that nothing
-        // else on the Mac may make a sound during a test.
-        let description = CATapDescription(stereoGlobalTapButExcludeProcesses: [])
+        let description = switch source {
+        case .systemWide:
+            CATapDescription(stereoGlobalTapButExcludeProcesses: [])
+        case let .processes(objectIDs):
+            CATapDescription(stereoMixdownOfProcesses: objectIDs)
+        }
         description.uuid = UUID()
         // Left audible: silencing what is being measured would change the very
         // thing under test, and a person running this needs to hear it too.

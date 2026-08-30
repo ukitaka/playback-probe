@@ -8,6 +8,7 @@ struct MenuContentView: View {
         VStack(alignment: .leading, spacing: 12) {
             header
             Divider()
+            sourcePicker
             AudioLevelMeter(level: model.level)
             Divider()
             oracles
@@ -29,6 +30,28 @@ struct MenuContentView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    /// Choosing what to listen to.
+    ///
+    /// Listening to the whole Mac is the reliable default and the one that
+    /// hears everything else too. On a machine someone is also using, a browser
+    /// playing a video sits well above the threshold and would keep the audio
+    /// oracle reporting sound long after the player under test stopped.
+    private var sourcePicker: some View {
+        Picker("Listen to", selection: Binding(
+            get: { model.selectedBundleIdentifier },
+            set: { model.select(bundleIdentifier: $0) }
+        )) {
+            Text("Everything this Mac plays").tag(String?.none)
+            Divider()
+            ForEach(model.availableProcesses) { process in
+                Text(process.bundleIdentifier ?? "")
+                    .tag(String?.some(process.bundleIdentifier ?? ""))
+            }
+        }
+        .pickerStyle(.menu)
+        .labelsHidden()
     }
 
     /// What the test side would see right now, so that a failing assertion can

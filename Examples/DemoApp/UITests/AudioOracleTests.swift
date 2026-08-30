@@ -25,15 +25,17 @@ final class AudioOracleTests: XCTestCase {
         // "no hub, so skip" into a failure.
         let health = try? client.health()
         try XCTSkipIf(health == nil, "No hub is listening at \(client.baseURL)")
-        try XCTSkipUnless(health?.isAudioTapAttached == true, "The hub has no audio tap attached")
-
-        try client.reset()
+        // Asks whether the host provides an audio oracle, not whether a tap is
+        // attached this instant: a host listening to one process rather than
+        // the whole Mac attaches only once that process makes a sound.
+        try XCTSkipUnless(health?.isAudioTapConfigured == true, "The hub has no audio tap")
 
         application = try XCUIApplication.withProbe(
             logURL: ProbeLogLocation.makeSharedLogURL(),
             hubURL: client.baseURL
         )
         application.launch()
+        try client.reset()
     }
 
     override func tearDown() {

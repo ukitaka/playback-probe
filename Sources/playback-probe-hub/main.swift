@@ -57,6 +57,7 @@ if let tap {
             )
         }
         hub.store.isAudioTapAttached = true
+        hub.store.isAudioTapConfigured = true
         print("audio tap running")
     } catch {
         FileHandle.standardError.write(Data("playback-probe-hub: \(error)\n".utf8))

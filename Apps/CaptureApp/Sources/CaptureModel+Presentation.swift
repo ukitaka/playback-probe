@@ -35,6 +35,7 @@ extension CaptureModel {
         switch tapState {
         case .stopped, .starting: .idle
         case .running: .good
+        case .waitingForProcess: .idle
         case .failed: .bad
         }
     }
@@ -43,7 +44,8 @@ extension CaptureModel {
         switch tapState {
         case .stopped: "stopped"
         case .starting: "waiting for permission"
-        case .running: "listening to this Mac"
+        case .running: selectedBundleIdentifier ?? "listening to this Mac"
+        case let .waitingForProcess(identifier): "waiting for \(identifier)"
         case .failed: "refused"
         }
     }
@@ -65,6 +67,11 @@ extension CaptureModel {
             """
             Core Audio has not answered yet. If macOS is asking for permission \
             to record this Mac's audio, that is what it is waiting for.
+            """
+        case let (.waitingForProcess(identifier), _):
+            """
+            \(identifier) is not running. The tap attaches by itself once it \
+            starts, and reattaches each time it is relaunched.
             """
         case (.running, _) where level == nil:
             """

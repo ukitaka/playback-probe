@@ -285,7 +285,7 @@ design — the application under test still needs no changes.
 | `GET /playback-status?window=1000` | Every oracle plus whether they agree. The one a test needs. |
 | `GET /audio-active?window=1500` | Whether sound reached the output during the window. |
 | `GET /level` | The most recent audio level. For watching a tap work. |
-| `GET /health` | Whether an audio tap is attached, which the level history cannot tell you. |
+| `GET /health` | Whether an audio oracle is available, whether a tap is attached this instant, and why it is not. |
 | `GET /events?limit=20` | Raw events as received, with the hub's clock. For finding out why a status is empty. |
 | `POST /player-state` | Where the probe reports. |
 | `POST /audio-level` | Where an audio tap reports. |
@@ -356,6 +356,57 @@ PLAYBACK_PROBE_AUDIO=1 Scripts/run-demo-tests.sh
 That starts the hub with a Core Audio process tap, so `/playback-status` gains
 an `audioActive` field.
 
+### The capture app
+
+`Apps/CaptureApp` is a menu bar application that hosts the hub and the tap.
+Prefer it over `playback-probe-hub --audio` for anything but a one-off:
+
+```console
+brew install xcodegen
+cd Apps/CaptureApp
+xcodegen generate
+open PlaybackProbeCapture.xcodeproj   # then run it
+```
+
+macOS grants audio capture permission to a signed application bundle and
+remembers it. A command-line tool has no stable identity to remember and is at
+the mercy of whatever permission its terminal happens to hold. The app is
+ad-hoc signed so it builds without a developer account, which costs something:
+an ad-hoc signature changes on every rebuild, so macOS may ask again after one.
+Signing with a stable identity avoids that.
+
+The menu shows the hub's address, whether the tap is running, a level meter and
+what each oracle currently reports — because both halves can fail silently. A
+hub nobody reports to and a tap that was refused both look exactly like a
+stopped player.
+
+### Listen to one process, not the whole Mac
+
+A system-wide tap hears everything. That is not a footnote: developing this,
+the audio oracle reported sound for a paused player for fifteen seconds
+straight because Chrome was playing a video in another window, three times
+louder than the threshold.
+
+So the menu offers a process to listen to instead. An application in a
+simulator appears in the host's Core Audio under its own bundle identifier, and
+the app follows it: the audio object is new on every launch, so it reattaches
+each time the application under test is relaunched, and waits when it is gone.
+
+The choice is remembered, and can be set without opening the menu:
+
+```console
+defaults write io.github.ukitaka.PlaybackProbeCapture audioProcess \
+  com.example.YourApp
+```
+
+One consequence reaches the test side. A process appears to Core Audio only
+once it makes a sound, so a tap aimed at one application is not attached until
+that application plays something. `/health` therefore reports two different
+things: `audioTapConfigured` says the host provides an audio oracle at all,
+which is what a test should check before asserting on sound, and
+`audioTapAttached` says a tap is running this instant, which will be false
+perfectly normally.
+
 ### Simulator.app has to be running
 
 **A simulator booted headlessly produces no sound at all.** `xcodebuild test`
@@ -372,12 +423,9 @@ its own bundle identifier, once it is running:
 swift run playback-probe-hub --list-audio-processes
 ```
 
-The tap is system-wide by default, which always works but hears every other
-application too, so nothing else on the Mac may make a sound during a test.
-`--audio-process <fragment>` narrows it to processes whose bundle identifier
-contains the fragment. The process has to exist when the hub starts, and a
-simulated application's audio object only exists while it runs, so this suits a
-long-lived process better than an application relaunched per test.
+`playback-probe-hub --audio` taps the whole Mac, which always works and hears
+every other application too. To listen to one process instead, use the capture
+app, which can follow a process on and off as it is relaunched.
 
 ### Permission and its failure modes
 
@@ -477,8 +525,8 @@ no one. Bumping either is a deliberate commit that carries its reformatting.
 4. ~~Aggregate `/playback-status` with a cross-oracle consistency check~~ — done
 5. ~~Audio oracle: Core Audio process tap and RMS history~~ — done
 6. ~~Video oracle: `AVPlayerItemVideoOutput` frame differencing~~ — done
-7. A menu bar application, so the tap has a permanent bundle to hold its
-   permission and a level meter to watch
+7. ~~A menu bar application, so the tap has a permanent bundle to hold its
+   permission and a level meter to watch~~ — done
 8. Android implementation behind the same schema
 
 ## License

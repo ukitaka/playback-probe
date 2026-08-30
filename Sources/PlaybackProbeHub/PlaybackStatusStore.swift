@@ -23,6 +23,19 @@ public final class PlaybackStatusStore: @unchecked Sendable {
         set { lock.lock(); audioTapAttached = newValue; lock.unlock() }
     }
 
+    /// Whether whoever hosts this hub provides an audio oracle at all.
+    ///
+    /// Distinct from ``isAudioTapAttached``, which says a tap is running right
+    /// now. A host told to listen to one process rather than the whole Mac has
+    /// nothing to attach to until that process exists — and a process only
+    /// appears to Core Audio once it makes a sound — so a test that waited for
+    /// attachment before playing anything would wait forever. This is the
+    /// question a test should ask.
+    public var isAudioTapConfigured: Bool {
+        get { lock.lock(); defer { lock.unlock() }; return audioTapConfigured }
+        set { lock.lock(); audioTapConfigured = newValue; lock.unlock() }
+    }
+
     /// Why the audio tap is not running, when something tried and failed.
     ///
     /// Reported through the hub because that is the one place everything else
@@ -34,6 +47,7 @@ public final class PlaybackStatusStore: @unchecked Sendable {
     }
 
     private var audioTapAttached = false
+    private var audioTapConfigured = false
     private var tapError: String?
 
     private let lock = NSLock()

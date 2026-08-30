@@ -65,6 +65,7 @@ struct HubRouter {
     private func health() -> HTTPResponse {
         let report = HealthReport(
             isReachable: true,
+            audioTapConfigured: store.isAudioTapConfigured,
             audioTapAttached: store.isAudioTapAttached,
             audioTapError: store.audioTapError
         )
@@ -201,11 +202,13 @@ enum AnyEncodableValue: Encodable, Sendable {
 /// oracle is missing instead of quietly having no opinion.
 private struct HealthReport: Encodable {
     var isReachable: Bool
+    var audioTapConfigured: Bool
     var audioTapAttached: Bool
     var audioTapError: String?
 
     enum CodingKeys: String, CodingKey {
         case isReachable = "ok"
+        case audioTapConfigured
         case audioTapAttached
         case audioTapError
     }
