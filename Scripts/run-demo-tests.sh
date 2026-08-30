@@ -21,9 +21,6 @@ port=${PLAYBACK_PROBE_HUB_PORT:-8642}
 audio_arguments=()
 if [[ "${PLAYBACK_PROBE_AUDIO:-0}" == "1" ]]; then
     audio_arguments+=(--audio)
-    if [[ -n "${PLAYBACK_PROBE_AUDIO_PROCESS:-}" ]]; then
-        audio_arguments+=(--audio-process "$PLAYBACK_PROBE_AUDIO_PROCESS")
-    fi
     open -a Simulator
 fi
 log=$(mktemp -t playback-probe-hub)

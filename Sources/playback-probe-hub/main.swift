@@ -47,42 +47,7 @@ do {
 // Optional because the tap needs audio capture permission, which the system
 // only ever grants to a signed application bundle. From a bare executable this
 // is expected to fail; the message says so.
-/// `--audio-process <fragment>` narrows the tap to processes whose bundle
-/// identifier contains the fragment. Without it the tap is system-wide, which
-/// always works but also hears every other application, so nothing else on the
-/// Mac may make a sound during a test.
-func audioSource() throws -> AudioLevelTap.Source {
-    guard let index = arguments.firstIndex(of: "--audio-process"),
-          arguments.indices.contains(index + 1)
-    else {
-        return .systemWide
-    }
-    let fragment = arguments[index + 1]
-    let matches = try AudioProcess.matching(bundleIdentifier: fragment)
-    guard !matches.isEmpty else {
-        throw AudioProcessNotFound(fragment: fragment)
-    }
-    for match in matches {
-        print("tapping \(match.description)")
-    }
-    return .processes(matches.map(\.id))
-}
-
-struct AudioProcessNotFound: Error, CustomStringConvertible {
-    let fragment: String
-    var description: String {
-        """
-        No audio process matches "\(fragment)". Run --list-audio-processes to see \
-        what is available. A simulator only appears once Simulator.app is running.
-        """
-    }
-}
-
-let tap: AudioLevelTap? = try? arguments.contains("--audio") ? AudioLevelTap(source: audioSource()) : nil
-if arguments.contains("--audio"), tap == nil {
-    FileHandle.standardError.write(Data("playback-probe-hub: could not select an audio source\n".utf8))
-    exit(1)
-}
+let tap: AudioLevelTap? = arguments.contains("--audio") ? AudioLevelTap() : nil
 
 if let tap {
     do {

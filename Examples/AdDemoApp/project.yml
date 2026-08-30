@@ -1,0 +1,68 @@
+name: PlaybackProbeAdDemo
+
+options:
+  bundleIdPrefix: io.github.ukitaka.playbackprobe
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+packages:
+  PlaybackProbe:
+    path: ../..
+  GoogleInteractiveMediaAds:
+    url: https://github.com/googleads/swift-package-manager-google-interactive-media-ads-ios
+    from: 3.33.0
+
+targets:
+  PlaybackProbeAdDemo:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Shared
+      # Shared with the hermetic demo rather than copied: one 15 second clip
+      # with a continuous tone is all either of them needs.
+      - path: ../DemoApp/Sources/Resources/sample.mp4
+        buildPhase: resources
+    dependencies:
+      - package: GoogleInteractiveMediaAds
+        product: GoogleInteractiveMediaAds
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: true
+        INFOPLIST_KEY_UILaunchScreen_Generation: true
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+
+  PlaybackProbeAdDemoUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+      - path: Shared
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: true
+        TEST_TARGET_NAME: PlaybackProbeAdDemo
+    dependencies:
+      - target: PlaybackProbeAdDemo
+      # The dynamic product has to be linked here even though the runner never
+      # calls it: the launch environment finds the library by asking dyld which
+      # image defines its entry point, which needs it loaded in this process.
+      - package: PlaybackProbe
+        product: PlaybackProbe
+      - package: PlaybackProbe
+        product: PlaybackProbeTestSupport
+      - package: PlaybackProbe
+        product: PlaybackProbeXCTest
+
+schemes:
+  PlaybackProbeAdDemo:
+    build:
+      targets:
+        PlaybackProbeAdDemo: all
+        PlaybackProbeAdDemoUITests: [test]
+    test:
+      targets:
+        - PlaybackProbeAdDemoUITests

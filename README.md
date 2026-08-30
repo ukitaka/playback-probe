@@ -47,10 +47,22 @@ single-oracle setup lets one of these through.
 
 ## Requirements
 
+- **The player must be an `AVPlayer`.** The state, time and video oracles all
+  reach it through `AVPlayer.rateDidChangeNotification`, so a player built on
+  `AVSampleBufferDisplayLayer`, VideoToolbox or a custom Metal pipeline is
+  invisible to them and all three go blind at once. It does not matter whose
+  `AVPlayer` it is: one buried inside a third-party SDK works, which is the
+  case this exists for. Only the audio oracle is independent of this.
 - iOS 16 or later, **simulator only**. A device rejects an injected library
   whose Team ID does not match the host application, and dyld silently ignores
   the environment variable.
 - Developed and tested with Xcode 26 and Swift 6. Earlier versions are untried.
+
+Check the first point against your own application before building anything on
+this. `Examples/DemoApp` cannot answer it for you: it uses a plain `AVPlayer`,
+so it passes by construction. `Examples/AdDemoApp` is a stronger check, and
+shows the Google IMA SDK's own ad player being found — see
+[Video ads: Google IMA](#video-ads-google-ima).
 
 ## Usage
 
@@ -170,6 +182,9 @@ xcodegen generate
 xcodebuild test -project PlaybackProbeDemo.xcodeproj -scheme PlaybackProbeDemo \
   -destination 'platform=iOS Simulator,name=iPhone 17'
 ```
+
+`Examples/AdDemoApp` is a second, non-hermetic example covering a video ad; see
+[Video ads: Google IMA](#video-ads-google-ima).
 
 ## How soon can a test assert?
 
@@ -344,13 +359,48 @@ The threshold separating sound from the noise floor is 0.01, roughly -40 dBFS.
 It was validated against a 440Hz tone on one machine; a different output device
 or volume may need a different value.
 
+## Video ads: Google IMA
+
+An ad SDK is the hardest case for this design. It creates its own player for
+the ad, the application never sees it, and the ad is exactly the moment you
+want to assert something about — a paused ad behind an overlay is still a
+paused video.
+
+**Verified working with the Google IMA SDK (v3.33.0).** The probe finds the
+player the SDK creates for a linear pre-roll as a second player, and both
+oracles track it:
+
+```
+[ad-spike] ad status: ad playing
+[ad-spike] players before ad: ["player-1"], after: ["player-1", "player-2"]
+[ad-spike] ad player player-2: 6 samples, positions ["0.00", "0.00", "0.19", "0.39", "0.59", "0.79"]
+```
+
+`player-1` is the content player the application owns; `player-2` appears the
+moment the ad starts and is never exposed by the SDK. That the probe reaches it
+at all is the whole point of watching `rateDidChangeNotification` with
+`object: nil`.
+
+`Examples/AdDemoApp` is the spike this came from. It is deliberately outside
+the hermetic demo: it pulls a binary dependency and fetches an ad from Google's
+sample ad server, so it needs a network. Its tests skip rather than fail when
+the ad server cannot be reached, since that says nothing about the probe.
+
+```console
+cd Examples/AdDemoApp
+xcodegen generate
+xcodebuild test -project PlaybackProbeAdDemo.xcodeproj -scheme PlaybackProbeAdDemo \
+  -destination 'platform=iOS Simulator,name=iPhone 17'
+```
+
+This does not generalise to every ad SDK. It is evidence that the approach
+survives one real one, and a template for checking another.
+
 ## Known limits
 
-- **Everything depends on catching the `AVPlayer`.** If the player renders
-  through `AVSampleBufferDisplayLayer` or a custom Metal pipeline,
-  `rateDidChangeNotification` never fires and the state, time and video oracles
-  all go blind at once. Check this first against your own application; the
-  audio oracle is the fallback when it fails.
+- **Everything except the audio oracle depends on catching the `AVPlayer`.**
+  See [Requirements](#requirements). The audio oracle is the fallback when a
+  player cannot be caught, since it watches the output rather than the player.
 - A player captured through the notification is not necessarily the instance
   producing sound. That is the specific gap the audio oracle closes.
 - FairPlay-protected content blocks frame access. The simulator does not

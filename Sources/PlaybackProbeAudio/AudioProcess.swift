@@ -33,13 +33,6 @@ public struct AudioProcess: Sendable, Identifiable {
         try all().filter(\.isProducingOutput)
     }
 
-    /// Processes whose bundle identifier contains `fragment`, case-insensitively.
-    public static func matching(bundleIdentifier fragment: String) throws -> [AudioProcess] {
-        try all().filter {
-            $0.bundleIdentifier?.localizedCaseInsensitiveContains(fragment) ?? false
-        }
-    }
-
     public var description: String {
         let name = bundleIdentifier ?? "(no bundle identifier)"
         let pid = processIdentifier.map(String.init) ?? "?"
