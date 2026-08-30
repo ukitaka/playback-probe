@@ -1,0 +1,60 @@
+# ---- macOS ----
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# ---- Xcode ----
+build/
+DerivedData/
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+timeline.xctimeline
+playground.xcworkspace
+
+# ---- Swift Package Manager ----
+.build/
+.swiftpm/
+Packages/
+Package.resolved
+*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+
+# ---- CocoaPods / Carthage (not used, kept for safety) ----
+Pods/
+Carthage/Build/
+
+# ---- Fastlane ----
+fastlane/report.xml
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# ---- Secrets / local config ----
+*.p12
+*.mobileprovision
+.env
+.env.*
+!.env.example
+
+# ---- Local working context (never published) ----
+# Design notes, scratch documents and the Japanese-language working record.
+# The published deliverables (code, README, docs/) are English-only.
+/notes/
+CLAUDE.md
+CLAUDE.local.md
+.claude/
