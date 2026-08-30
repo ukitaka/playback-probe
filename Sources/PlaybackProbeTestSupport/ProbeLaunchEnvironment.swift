@@ -12,20 +12,28 @@ public enum ProbeLaunchEnvironment {
     ///     ``ProbeLogLocation/makeSharedLogURL()`` unless you have a path both
     ///     processes are known to reach.
     ///   - sampleInterval: Sampling period for the state and time oracles.
+    ///   - hubURL: Base URL of a hub to report to as well, such as
+    ///     `http://127.0.0.1:8642`. Needed only when host-side oracles are in
+    ///     play; the state and time oracles work from the log alone.
     ///   - libraryURL: The probe to inject. Defaults to the copy loaded in this
     ///     process.
     public static func make(
         logURL: URL,
         sampleInterval: TimeInterval = 0.2,
+        hubURL: URL? = nil,
         libraryURL: URL? = nil
     ) throws -> [String: String] {
         let library = try libraryURL ?? ProbeLibrary.url()
-        return [
+        var environment = [
             ProbeLibrary.insertLibrariesKey: library.path,
             ProbeConfiguration.enabledKey: "1",
             ProbeConfiguration.logPathKey: logURL.path,
             ProbeConfiguration.sampleIntervalKey: String(Int(sampleInterval * 1000)),
         ]
+        if let hubURL {
+            environment[ProbeConfiguration.hubURLKey] = hubURL.absoluteString
+        }
+        return environment
     }
 }
 

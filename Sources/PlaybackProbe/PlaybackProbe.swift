@@ -50,7 +50,7 @@ public final class PlaybackProbe: @unchecked Sendable {
         }
         isRunning = true
         self.configuration = configuration
-        let recorder = ProbeEventRecorder(logPath: configuration.logPath)
+        let recorder = ProbeEventRecorder(logPath: configuration.logPath, hubURL: configuration.hubURL)
         self.recorder = recorder
         lock.unlock()
 

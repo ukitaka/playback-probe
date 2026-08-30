@@ -5,9 +5,17 @@ import XCTest
 
 extension XCUIApplication {
     /// An application configured to load the probe and record to `logURL`.
-    static func withProbe(logURL: URL, sampleInterval: TimeInterval = 0.2) throws -> XCUIApplication {
+    static func withProbe(
+        logURL: URL,
+        sampleInterval: TimeInterval = 0.2,
+        hubURL: URL? = nil
+    ) throws -> XCUIApplication {
         let application = XCUIApplication()
-        let environment = try ProbeLaunchEnvironment.make(logURL: logURL, sampleInterval: sampleInterval)
+        let environment = try ProbeLaunchEnvironment.make(
+            logURL: logURL,
+            sampleInterval: sampleInterval,
+            hubURL: hubURL
+        )
         application.launchEnvironment.merge(environment) { _, injected in injected }
         return application
     }

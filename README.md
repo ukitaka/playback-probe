@@ -37,7 +37,7 @@ several independent ones. Each catches bugs the others miss.
 |---|---|---|---|
 | State | `AVPlayer.timeControlStatus` | The player intends to be stopped | Implemented |
 | Time | `AVPlayer.currentTime()`, sampled repeatedly | The playback position is not moving | Implemented |
-| Audio | Core Audio process tap on the simulator's output | Nothing is reaching the speaker | Planned |
+| Audio | Core Audio process tap on the simulator's output | Nothing is reaching the speaker | Hub ready, tap planned |
 | Video | Frame differencing via `AVPlayerItemVideoOutput` | Rendering is not advancing | Planned |
 
 Why more than one: a player whose state says `paused` while a second instance
@@ -147,6 +147,8 @@ target rather than from the application.
 | `PlaybackProbe` | the test target, injected into the app | The probe itself. Dynamic, so dyld can load it. |
 | `PlaybackProbeTestSupport` | the test target | Locating the library, building the launch environment, reading the log, reaching a verdict. |
 | `PlaybackProbeXCTest` | the test target | XCTest assertions over the above. Separate so `PlaybackProbeTestSupport` stays usable without XCTest. |
+| `PlaybackProbeHub` | the host-side application | The aggregation point and its HTTP endpoint. |
+| `playback-probe-hub` | run on the host | The hub without a user interface, for CI and for scripts. |
 
 `PlaybackProbeSchema` underneath both holds the wire types and carries no
 platform assumptions, so the planned Android implementation can serve the same
@@ -209,6 +211,73 @@ until the evidence is there rather than assuming it has arrived.
 These figures cover the state and time oracles only. The audio oracle will add
 the buffer still draining after a pause, which is a separate and larger delay.
 
+## The hub
+
+The state and time oracles need nothing but the probe and its log. The audio
+oracle cannot work that way: it watches the simulator's sound from the host, so
+something has to combine what the host sees with what the probe sees. That is
+the hub.
+
+```console
+swift run playback-probe-hub          # listens on 127.0.0.1:8642
+```
+
+Point the probe at it, and ask it rather than the log:
+
+```swift
+let client = PlaybackStatusClient(baseURL: hubURL)
+let application = XCUIApplication()
+application.launchEnvironment.merge(
+    try ProbeLaunchEnvironment.make(logURL: logURL, hubURL: hubURL)
+) { _, new in new }
+application.launch()
+
+application.buttons["play"].tap()
+let status = try client.waitForStatus { $0.isPlaying == true }
+```
+
+`Scripts/run-demo-tests.sh` starts a hub and runs the demo's tests against it.
+
+### Why the hub runs on the host
+
+It would be tidier to start it inside the XCUITest runner, and that does not
+work: whenever the application under test is in front, the runner is in the
+background, where iOS will not keep a listening socket alive. The connection is
+accepted and then dropped, and the hub receives nothing.
+
+Simulator processes share the host's loopback, so a hub started on the Mac is
+reachable from both the application and the runner at `127.0.0.1`. No App
+Transport Security exemption is needed for that, and — the point of the whole
+design — the application under test still needs no changes.
+
+### Endpoints
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /playback-status?window=1000` | Every oracle plus whether they agree. The one a test needs. |
+| `GET /audio-active?window=1500` | Whether sound reached the output during the window. |
+| `GET /level` | The most recent audio level. For watching a tap work. |
+| `GET /events?limit=20` | Raw events as received, with the hub's clock. For finding out why a status is empty. |
+| `POST /player-state` | Where the probe reports. |
+| `POST /audio-level` | Where an audio tap reports. |
+| `POST /reset` | Clears every history. Call between tests. |
+
+### Absent is not false
+
+An oracle that is not running reports nothing rather than `false`, and its key
+is left out of the response entirely:
+
+```json
+{"consistent":true,"currentTimeAdvancing":true,"playerState":"playing"}
+```
+
+There is no `audioActive` here because no tap is running. Had it defaulted to
+`false`, a hub with a broken tap would look exactly like a correctly silenced
+player, which is the false pass this toolkit exists to prevent. `consistent`
+compares only the oracles that have an opinion, and disagreement between them is
+the finding, not an error — a player reporting `paused` while sound keeps coming
+is the bug no single oracle catches.
+
 ## Known limits
 
 - **Everything depends on catching the `AVPlayer`.** If the player renders
@@ -225,10 +294,10 @@ the buffer still draining after a pause, which is a separate and larger delay.
 
 1. ~~Injection: constructor, entry point, observer registration~~ — done
 2. ~~State and time oracles, recorded to a log~~ — done
-3. Host-side capture app: Core Audio process tap and RMS history
-4. HTTP hub and a Swift client for the test side
-5. Video oracle: `AVPlayerItemVideoOutput` frame differencing
-6. Aggregate `/playback-status` with a cross-oracle consistency check
+3. ~~Hub, its HTTP endpoints and a Swift client for the test side~~ — done
+4. ~~Aggregate `/playback-status` with a cross-oracle consistency check~~ — done
+5. Host-side capture app: Core Audio process tap and RMS history
+6. Video oracle: `AVPlayerItemVideoOutput` frame differencing
 7. Android implementation behind the same schema
 
 ## License

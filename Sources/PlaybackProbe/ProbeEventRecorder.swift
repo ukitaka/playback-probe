@@ -2,12 +2,13 @@ import Foundation
 import os
 import PlaybackProbeSchema
 
-/// Serialises probe events to the unified log and, when configured, appends
-/// them to a JSON Lines file.
+/// Fans one observation out to every channel that is configured.
 ///
-/// The file is the channel a UI test reads: the test runner is a separate
-/// process and cannot see the application's standard output, but it can read a
-/// path both processes agree on.
+/// The file is the channel a UI test reads on its own: the test runner is a
+/// separate process and cannot see the application's standard output, but it
+/// can read a path both processes agree on. The hub is the channel that lets
+/// the host-side oracles be combined with these, and is optional so that the
+/// state and time oracles keep working with nothing else running.
 final class ProbeEventRecorder: @unchecked Sendable {
     private let logger = Logger(subsystem: "com.github.ukitaka.PlaybackProbe", category: "probe")
     private let encoder: JSONEncoder = {
@@ -18,8 +19,10 @@ final class ProbeEventRecorder: @unchecked Sendable {
 
     private let lock = NSLock()
     private var fileHandle: FileHandle?
+    private let reporter: HubReporter?
 
-    init(logPath: String?) {
+    init(logPath: String?, hubURL: URL? = nil) {
+        reporter = hubURL.map { HubReporter(hubURL: $0) }
         guard let logPath else { return }
         fileHandle = Self.openLogFile(at: logPath, logger: logger)
     }
@@ -30,6 +33,7 @@ final class ProbeEventRecorder: @unchecked Sendable {
 
     func record(_ event: ProbeEvent) {
         logger.debug("\(String(describing: event), privacy: .public)")
+        reporter?.send(event)
 
         guard let data = try? encoder.encode(event) else {
             logger.error("Failed to encode probe event of kind \(event.kind.rawValue, privacy: .public)")

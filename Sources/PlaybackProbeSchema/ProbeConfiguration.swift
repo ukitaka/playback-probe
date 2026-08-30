@@ -17,9 +17,14 @@ public struct ProbeConfiguration: Sendable {
     /// Sampling period for the state and time oracles, in milliseconds.
     public static let sampleIntervalKey = "PLAYBACK_PROBE_SAMPLE_INTERVAL_MS"
 
+    /// Base URL of the hub to report to, such as `http://127.0.0.1:8642`.
+    /// Optional; without it the probe only writes to its log.
+    public static let hubURLKey = "PLAYBACK_PROBE_HUB_URL"
+
     public static let defaultSampleInterval: TimeInterval = 0.5
 
     public var logPath: String?
+    public var hubURL: URL?
     public var sampleInterval: TimeInterval
 
     /// Returns `nil` when the probe is not enabled for this process.
@@ -31,6 +36,7 @@ public struct ProbeConfiguration: Sendable {
         }
 
         logPath = environment[Self.logPathKey].flatMap { $0.isEmpty ? nil : $0 }
+        hubURL = environment[Self.hubURLKey].flatMap { URL(string: $0) }
 
         if let rawInterval = environment[Self.sampleIntervalKey],
            let milliseconds = Double(rawInterval),

@@ -22,6 +22,11 @@ let package = Package(
         // XCTest assertions built on the helpers above. Separate so that
         // PlaybackProbeTestSupport stays usable without XCTest.
         .library(name: "PlaybackProbeXCTest", targets: ["PlaybackProbeXCTest"]),
+        // The host-side aggregation point: an HTTP endpoint every oracle
+        // reports to and the test reads from.
+        .library(name: "PlaybackProbeHub", targets: ["PlaybackProbeHub"]),
+        // Runs the hub headlessly, without the menu bar application.
+        .executable(name: "playback-probe-hub", targets: ["playback-probe-hub"]),
     ],
     targets: [
         // C shim holding the `__attribute__((constructor))` entry point.
@@ -33,6 +38,8 @@ let package = Package(
         .target(name: "PlaybackProbeSchema"),
         .target(name: "PlaybackProbe", dependencies: ["ProbeBootstrap", "PlaybackProbeSchema"]),
         .target(name: "PlaybackProbeTestSupport", dependencies: ["PlaybackProbeSchema"]),
+        .target(name: "PlaybackProbeHub", dependencies: ["PlaybackProbeSchema"]),
+        .executableTarget(name: "playback-probe-hub", dependencies: ["PlaybackProbeHub"]),
         .target(
             name: "PlaybackProbeXCTest",
             dependencies: ["PlaybackProbeSchema", "PlaybackProbeTestSupport"]
@@ -40,6 +47,10 @@ let package = Package(
         .testTarget(
             name: "PlaybackProbeTests",
             dependencies: ["PlaybackProbeSchema", "PlaybackProbeTestSupport"]
+        ),
+        .testTarget(
+            name: "PlaybackProbeHubTests",
+            dependencies: ["PlaybackProbeHub", "PlaybackProbeSchema", "PlaybackProbeTestSupport"]
         ),
     ]
 )
