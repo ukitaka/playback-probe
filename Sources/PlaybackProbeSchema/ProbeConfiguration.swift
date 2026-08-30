@@ -21,10 +21,19 @@ public struct ProbeConfiguration: Sendable {
     /// Optional; without it the probe only writes to its log.
     public static let hubURLKey = "PLAYBACK_PROBE_HUB_URL"
 
+    /// Set to `0` to stop sampling video frames.
+    ///
+    /// On by default. Attaching an `AVPlayerItemVideoOutput` is public API and
+    /// several outputs can coexist on one item, so it does not displace what
+    /// the player already does with its frames. Turn it off if the extra decode
+    /// path is unwelcome, at the cost of the video oracle.
+    public static let videoKey = "PLAYBACK_PROBE_VIDEO"
+
     public static let defaultSampleInterval: TimeInterval = 0.5
 
     public var logPath: String?
     public var hubURL: URL?
+    public var isVideoEnabled: Bool
     public var sampleInterval: TimeInterval
 
     /// Returns `nil` when the probe is not enabled for this process.
@@ -37,6 +46,7 @@ public struct ProbeConfiguration: Sendable {
 
         logPath = environment[Self.logPathKey].flatMap { $0.isEmpty ? nil : $0 }
         hubURL = environment[Self.hubURLKey].flatMap { URL(string: $0) }
+        isVideoEnabled = environment[Self.videoKey].map(Self.isEnabled) ?? true
 
         if let rawInterval = environment[Self.sampleIntervalKey],
            let milliseconds = Double(rawInterval),

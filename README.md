@@ -38,7 +38,7 @@ several independent ones. Each catches bugs the others miss.
 | State | `AVPlayer.timeControlStatus` | The player intends to be stopped | Implemented |
 | Time | `AVPlayer.currentTime()`, sampled repeatedly | The playback position is not moving | Implemented |
 | Audio | Core Audio process tap on the Mac's output | Nothing is reaching the speaker | Implemented |
-| Video | Frame differencing via `AVPlayerItemVideoOutput` | Rendering is not advancing | Planned |
+| Video | Frame differencing via `AVPlayerItemVideoOutput` | Rendering is not advancing | Implemented |
 
 Why more than one: a player whose state says `paused` while a second instance
 keeps producing sound is invisible to the state and time oracles but obvious to
@@ -142,7 +142,8 @@ injected into an application that knows nothing about it.
 |---|---|---|
 | `PLAYBACK_PROBE_ENABLED` | unset | Must be `1`, `true` or `yes`. The probe is completely inert otherwise. |
 | `PLAYBACK_PROBE_LOG_PATH` | unset | Absolute path of the JSON Lines log. Without it, events only go to the unified log. |
-| `PLAYBACK_PROBE_SAMPLE_INTERVAL_MS` | `500` | Sampling period for the state and time oracles. |
+| `PLAYBACK_PROBE_SAMPLE_INTERVAL_MS` | `500` | Sampling period for the state, time and video oracles. |
+| `PLAYBACK_PROBE_VIDEO` | `1` | Set to `0` to stop sampling video frames. |
 
 ### Keeping it out of production
 
@@ -304,6 +305,41 @@ compares only the oracles that have an opinion, and disagreement between them is
 the finding, not an error — a player reporting `paused` while sound keeps coming
 is the bug no single oracle catches.
 
+## The video oracle
+
+Attaches an `AVPlayerItemVideoOutput` to whatever item the player is on and
+reduces each frame to a 16x16 average hash: the frame is sampled onto a grid
+and each cell becomes one bit, set when it is brighter than the frame's mean.
+Two frames of the same picture agree; a frame that moved does not. Several
+outputs can share an item, so this does not displace what the player already
+does with its frames. `PLAYBACK_PROBE_VIDEO=0` switches it off.
+
+The grid size was measured, not chosen. At 8 cells a side, consecutive frames
+of moving video differed by a median of **one** bit — averaging over a large
+cell smooths away everything but the largest movement, and movement could not
+be told from noise. At 16 the same frames differ by 3 to 8 bits, median 6, so
+the tolerance sits at 2.
+
+### A paused player produces no frames at all
+
+Not repeated frames: none. Over three seconds paused, every single tick found
+no new pixel buffer. So the evidence that the picture stopped is the *absence*
+of frames across a window, not a run of identical ones.
+
+That makes a distinction load-bearing. A tick that caught no frame is recorded
+with no hash, and a window with no frames at all reads as "not advancing" —
+but only when the oracle was actually running. A probe with video switched off
+records nothing at all and reports no opinion, exactly as an unattached audio
+tap does. Reporting `false` in that case would make a switched-off oracle look
+like a stopped picture.
+
+### A covered layer keeps rendering
+
+Frames arrive at the same rate behind a full-screen overlay as in front of one:
+median distance 7 versus 6, no missed ticks either way. So the demo's overlay
+that forgets to pause is caught by the video oracle, which matters because that
+is precisely the case a screenshot cannot judge.
+
 ## The audio oracle
 
 The other oracles ask the player about itself. This one watches the sound
@@ -393,6 +429,14 @@ xcodebuild test -project PlaybackProbeAdDemo.xcodeproj -scheme PlaybackProbeAdDe
   -destination 'platform=iOS Simulator,name=iPhone 17'
 ```
 
+The video oracle is a different matter for ads, and not because of the probe:
+Google's sample creative is a still image, bit-identical for its whole
+duration, so there is no movement to detect. The spike proves the oracle is
+working in the same run by checking the content player's frames first — without
+that control, a still ad and a broken sampler look the same. Against a real ad
+the video oracle applies normally; against a still one, the state, time and
+audio oracles carry it.
+
 This does not generalise to every ad SDK. It is evidence that the approach
 survives one real one, and a template for checking another.
 
@@ -413,7 +457,7 @@ survives one real one, and a template for checking another.
 3. ~~Hub, its HTTP endpoints and a Swift client for the test side~~ — done
 4. ~~Aggregate `/playback-status` with a cross-oracle consistency check~~ — done
 5. ~~Audio oracle: Core Audio process tap and RMS history~~ — done
-6. Video oracle: `AVPlayerItemVideoOutput` frame differencing
+6. ~~Video oracle: `AVPlayerItemVideoOutput` frame differencing~~ — done
 7. A menu bar application, so the tap has a permanent bundle to hold its
    permission and a level meter to watch
 8. Android implementation behind the same schema

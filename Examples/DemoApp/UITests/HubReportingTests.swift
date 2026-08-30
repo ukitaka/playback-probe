@@ -45,7 +45,7 @@ final class HubReportingTests: XCTestCase {
         if try !client.health().isAudioTapAttached {
             XCTAssertNil(status.audioActive)
         }
-        XCTAssertNil(status.videoAdvancing, "The video oracle is not implemented yet")
+        XCTAssertEqual(status.videoAdvancing, true, "Frames should be going by while playing")
         XCTAssertTrue(status.consistent)
     }
 

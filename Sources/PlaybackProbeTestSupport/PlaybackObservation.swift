@@ -28,13 +28,23 @@ public struct PlaybackObservation: Sendable {
         samples.isPlaybackPositionAdvancing()
     }
 
+    /// Whether the video oracle was running over this window.
+    public var hasVideoOracle: Bool {
+        samples.hasVideoOracle
+    }
+
+    public var isVideoAdvancing: Bool {
+        samples.isVideoAdvancing()
+    }
+
     /// Whether there is enough evidence to say anything at all.
     public var isConclusive: Bool {
         samples.count >= 2
     }
 
     /// Every oracle agrees playback is stopped: the player reports paused for
-    /// the whole window and the position never moved.
+    /// the whole window, the position never moved, and the picture did not
+    /// change if anything was watching it.
     ///
     /// `waitingToPlay` does not count as stopped. The player intends to play
     /// and is only starved of data, which is a different bug.
@@ -42,13 +52,16 @@ public struct PlaybackObservation: Sendable {
         isConclusive
             && samples.allSatisfy { $0.playerState == .paused }
             && !isPositionAdvancing
+            && !(hasVideoOracle && isVideoAdvancing)
     }
 
-    /// Playback is running: the player reports playing and the position moved.
+    /// Playback is running: the player reports playing, the position moved,
+    /// and the picture changed if anything was watching it.
     public var isPlaying: Bool {
         isConclusive
             && samples.contains { $0.playerState == .playing }
             && isPositionAdvancing
+            && (!hasVideoOracle || isVideoAdvancing)
     }
 
     /// A one-line description for a failure message.
@@ -64,7 +77,10 @@ public struct PlaybackObservation: Sendable {
         let positionText = positions.isEmpty
             ? "no position readings"
             : "position \(formatted(positions.first!)) to \(formatted(positions.last!))"
-        return "\(samples.count) samples over \(formatted(window)): \(stateList), \(positionText)"
+        let videoText = hasVideoOracle
+            ? ", picture \(isVideoAdvancing ? "moving" : "still")"
+            : ""
+        return "\(samples.count) samples over \(formatted(window)): \(stateList), \(positionText)\(videoText)"
     }
 
     private func formatted(_ value: Double) -> String {

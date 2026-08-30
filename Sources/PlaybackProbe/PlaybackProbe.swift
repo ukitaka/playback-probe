@@ -86,7 +86,11 @@ public final class PlaybackProbe: @unchecked Sendable {
             return
         }
         attachedPlayerCount += 1
-        let attached = AttachedPlayer(id: "player-\(attachedPlayerCount)", player: player)
+        let attached = AttachedPlayer(
+            id: "player-\(attachedPlayerCount)",
+            player: player,
+            videoSampler: configuration?.isVideoEnabled == true ? VideoFrameSampler() : nil
+        )
         attachedPlayers[identifier] = attached
         let recorder = recorder
         lock.unlock()
@@ -147,7 +151,9 @@ public final class PlaybackProbe: @unchecked Sendable {
                     playerID: attached.id,
                     playerState: PlayerState(player.timeControlStatus),
                     currentTime: Self.finiteSeconds(player.currentTime()),
-                    rate: player.rate
+                    rate: player.rate,
+                    videoSampled: attached.videoSampler != nil ? true : nil,
+                    videoFrameHash: attached.videoSampler?.sample(from: player)
                 )
             )
         }
@@ -166,9 +172,12 @@ public final class PlaybackProbe: @unchecked Sendable {
 private final class AttachedPlayer {
     let id: String
     weak var player: AVPlayer?
+    /// `nil` when video sampling is switched off for this run.
+    let videoSampler: VideoFrameSampler?
 
-    init(id: String, player: AVPlayer) {
+    init(id: String, player: AVPlayer, videoSampler: VideoFrameSampler?) {
         self.id = id
         self.player = player
+        self.videoSampler = videoSampler
     }
 }

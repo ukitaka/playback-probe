@@ -43,8 +43,21 @@ final class AdOracleTests: XCTestCase {
     /// The question this spike exists to answer.
     func testProbeSeesThePlayerTheAdSDKCreated() throws {
         application.buttons[AdDemoIdentifier.playContentButton].tap()
-        try log.waitForEvents { !$0.events(of: .playerAttached).isEmpty }
+        let contentEvents = try log.waitForEvents(timeout: 15) {
+            $0.events(of: .sample).count >= 10
+        }
         let playersBeforeAd = distinctPlayerIDs()
+
+        // Control for everything below: the same sampler, in the same run, on
+        // a player whose picture is known to move. Without this, a still ad
+        // and a broken sampler look identical.
+        XCTAssertTrue(
+            contentEvents.isVideoAdvancing(),
+            """
+            The video oracle did not see the content player's frames move, so \
+            nothing can be concluded about the ad
+            """
+        )
 
         application.buttons[AdDemoIdentifier.requestAdButton].tap()
         let adStatus = try adPlaybackStatus()
@@ -62,15 +75,15 @@ final class AdOracleTests: XCTestCase {
         changes, so only the audio oracle covers ads.
         """)
 
-        // The ad player is found the instant it is created, when it has barely
-        // any position to report. Wait for a run of samples before judging
-        // whether it moved, or the verdict rests on one 60ms step.
-        let observed = try log.waitForEvents(timeout: 15) {
-            $0.events(of: .sample).count(where: { $0.playerID == adPlayerID }) >= 6
+        // Watched for several seconds rather than a moment. The ad player is
+        // found the instant it is created, when it has barely any position to
+        // report, and an ad can open on a static frame: a verdict from its
+        // first second would describe the ad's opening rather than the oracle.
+        let observed = try log.waitForEvents(timeout: 30) {
+            $0.events(of: .sample).count(where: { $0.playerID == adPlayerID }) >= 25
         }
         let samples = observed.events(of: .sample).filter { $0.playerID == adPlayerID }
-        let positions = samples.compactMap(\.currentTime).map { String(format: "%.2f", $0) }
-        print("[ad-spike] ad player \(adPlayerID): \(samples.count) samples, positions \(positions)")
+        describe(adPlayerID, samples)
 
         XCTAssertTrue(
             samples.contains { $0.playerState == .playing },
@@ -80,6 +93,28 @@ final class AdOracleTests: XCTestCase {
             samples.isPlaybackPositionAdvancing(),
             "The ad player was found but its position never moved"
         )
+        XCTAssertTrue(samples.hasVideoOracle, "The video oracle was not running on the ad player")
+    }
+
+    /// Prints what every oracle saw of the ad.
+    ///
+    /// Whether the picture moved is reported rather than asserted: that is a
+    /// property of the creative, not of the probe. Google's sample ad is a
+    /// still image for its whole duration, and the control in the test above
+    /// already shows the oracle working on a picture that does move.
+    private func describe(_ adPlayerID: String, _ samples: [ProbeEvent]) {
+        let positions = samples.compactMap(\.currentTime).map { String(format: "%.2f", $0) }
+        let hashes = samples.compactMap(\.videoFrameHash)
+        let distances = zip(hashes, hashes.dropFirst()).compactMap {
+            FrameFingerprint.hammingDistance($0, $1)
+        }
+        print("""
+        [ad-spike] ad player \(adPlayerID): \(samples.count) samples
+        [ad-spike]   positions: \(positions)
+        [ad-spike]   frames: \(hashes.count) of \(samples.count) samples carried one
+        [ad-spike]   frame distances: \(distances)
+        [ad-spike]   picture moving: \(samples.isVideoAdvancing())
+        """)
     }
 
     /// Waits for the SDK to report that an ad is on screen, and skips when it

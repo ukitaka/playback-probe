@@ -83,9 +83,10 @@ public final class PlaybackStatusStore: @unchecked Sendable {
             // is "no opinion", not "not moving".
             currentTimeAdvancing: recent.count >= 2 ? recent.isPlaybackPositionAdvancing() : nil,
             audioActive: audioLevels.isActive(within: window, now: now),
-            // Not implemented yet. Absent rather than false, so that a missing
-            // oracle is never read as evidence of stopped rendering.
-            videoAdvancing: nil
+            // Absent unless frames actually arrived: a probe with video
+            // sampling switched off must not be read as evidence of stopped
+            // rendering.
+            videoAdvancing: recent.hasVideoOracle ? recent.isVideoAdvancing() : nil
         )
     }
 

@@ -61,8 +61,53 @@ struct PlaybackObservationTests {
         #expect(summary.contains("2 samples"))
     }
 
+    /// The row of the design's table only the video oracle catches: the player
+    /// says paused and its clock agrees, but frames keep being rendered.
+    @Test("does not call it stopped while the picture is still moving")
+    func pausedButStillRendering() {
+        let observation = observe(
+            [(.paused, 3.0), (.paused, 3.0), (.paused, 3.0)],
+            hashes: ["0000", "ffff", "0000"]
+        )
+        #expect(observation.hasVideoOracle)
+        #expect(observation.isVideoAdvancing)
+        #expect(!observation.isStopped)
+    }
+
+    /// A paused player stops producing frames, so the video oracle agrees with
+    /// the others rather than withholding a verdict.
+    @Test("calls it stopped when the picture stopped too")
+    func stoppedWithVideo() {
+        let observation = observe(
+            [(.paused, 3.0), (.paused, 3.0), (.paused, 3.0)],
+            hashes: [nil, nil, nil]
+        )
+        #expect(observation.hasVideoOracle)
+        #expect(!observation.isVideoAdvancing)
+        #expect(observation.isStopped)
+    }
+
+    /// A player whose clock runs while nothing is drawn is not playing, and
+    /// only the video oracle can say so.
+    @Test("does not call it playing when the picture is frozen")
+    func playingButFrozen() {
+        let observation = observe(
+            [(.playing, 1.0), (.playing, 1.2), (.playing, 1.4)],
+            hashes: ["00ff", "00ff", "00ff"]
+        )
+        #expect(!observation.isPlaying)
+    }
+
+    @Test("ignores the video oracle when it is switched off")
+    func videoOracleOff() {
+        let observation = observe([(.playing, 1.0), (.playing, 1.2)])
+        #expect(!observation.hasVideoOracle)
+        #expect(observation.isPlaying)
+    }
+
     private func observe(
         _ readings: [(PlayerState, Double)],
+        hashes: [String?]? = nil,
         window: TimeInterval = 1.0
     ) -> PlaybackObservation {
         let samples = readings.enumerated().map { index, reading in
@@ -71,7 +116,9 @@ struct PlaybackObservationTests {
                 timestamp: Double(index) * 0.2,
                 playerID: "player-1",
                 playerState: reading.0,
-                currentTime: reading.1
+                currentTime: reading.1,
+                videoSampled: hashes == nil ? nil : true,
+                videoFrameHash: hashes.flatMap { index < $0.count ? $0[index] : nil }
             )
         }
         return PlaybackObservation(samples: samples, window: window)

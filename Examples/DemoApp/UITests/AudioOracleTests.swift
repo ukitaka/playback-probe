@@ -42,7 +42,12 @@ final class AudioOracleTests: XCTestCase {
     func testSoundReachesTheOutputWhilePlaying() throws {
         application.buttons[DemoIdentifier.playButton].tap()
 
-        let status = try client.waitForStatus(timeout: 15) { $0.audioActive == true }
+        // Waits for the agreement it then asserts. Waiting on audio alone
+        // returns during a transition, when another oracle has not caught up
+        // and the oracles legitimately disagree for a tick.
+        let status = try client.waitForStatus(timeout: 15) {
+            $0.audioActive == true && $0.isPlaying == true
+        }
         XCTAssertEqual(status.playerState, .playing)
         XCTAssertTrue(status.consistent)
     }
@@ -60,16 +65,17 @@ final class AudioOracleTests: XCTestCase {
         XCTAssertTrue(status.consistent, "Every oracle should agree that playback stopped")
     }
 
-    /// The failure the audio oracle exists for. Here the player is honest, so
-    /// all four agree; the value is that a player which lied about pausing
-    /// would show up as an inconsistency rather than a pass.
+    /// All four oracles at once. The player here is honest, so they agree; the
+    /// value is that one lying about having paused would show up as a
+    /// disagreement rather than a pass.
     func testEveryOracleAgreesWhilePlaying() throws {
         application.buttons[DemoIdentifier.playButton].tap()
 
         let status = try client.waitForStatus(timeout: 15) {
-            $0.audioActive == true && $0.currentTimeAdvancing == true
+            $0.audioActive == true && $0.isPlaying == true
         }
-        XCTAssertEqual(status.isPlaying, true)
         XCTAssertEqual(status.playerState, .playing)
+        XCTAssertEqual(status.currentTimeAdvancing, true)
+        XCTAssertEqual(status.videoAdvancing, true, "The video oracle should agree while playing")
     }
 }
