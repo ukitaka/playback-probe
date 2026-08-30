@@ -1,0 +1,6 @@
+--swiftversion 6.0
+--exclude .build,Examples/DemoApp/PlaybackProbeDemo.xcodeproj
+--maxwidth 110
+--wraparguments before-first
+--wrapparameters before-first
+--wrapcollections before-first

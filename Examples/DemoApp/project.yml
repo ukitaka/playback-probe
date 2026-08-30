@@ -1,0 +1,55 @@
+name: PlaybackProbeDemo
+
+options:
+  bundleIdPrefix: io.github.ukitaka.playbackprobe
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+packages:
+  PlaybackProbe:
+    path: ../..
+
+targets:
+  PlaybackProbeDemo:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Shared
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: true
+        INFOPLIST_KEY_UILaunchScreen_Generation: true
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+
+  PlaybackProbeDemoUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+      - path: Shared
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: true
+        TEST_TARGET_NAME: PlaybackProbeDemo
+    dependencies:
+      - target: PlaybackProbeDemo
+      # Linked into the test bundle only so that the probe is built and shipped
+      # somewhere the test can point DYLD_INSERT_LIBRARIES at. The test runner
+      # is a separate process from the application, so linking it here has no
+      # effect on what the application loads.
+      - package: PlaybackProbe
+        product: PlaybackProbe
+
+schemes:
+  PlaybackProbeDemo:
+    build:
+      targets:
+        PlaybackProbeDemo: all
+        PlaybackProbeDemoUITests: [test]
+    test:
+      targets:
+        - PlaybackProbeDemoUITests

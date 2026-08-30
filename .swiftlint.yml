@@ -1,0 +1,22 @@
+excluded:
+  - .build
+  - Examples/DemoApp/PlaybackProbeDemo.xcodeproj
+
+# Formatting is owned by SwiftFormat (.swiftformat). Rules that disagree with it
+# are disabled here so the two tools cannot fight over the same lines.
+disabled_rules:
+  - trailing_comma
+  - opening_brace
+  # `layerClass` must be `class` rather than `static`: it overrides UIView.
+  - static_over_final_class
+
+line_length:
+  warning: 110
+  error: 140
+  ignores_comments: true
+
+identifier_name:
+  excluded:
+    # A C symbol name, fixed by the @_cdecl contract.
+    - playback_probe_start
+    - id
