@@ -43,6 +43,8 @@ targets:
       # effect on what the application loads.
       - package: PlaybackProbe
         product: PlaybackProbe
+      - package: PlaybackProbe
+        product: PlaybackProbeTestSupport
 
 schemes:
   PlaybackProbeDemo:

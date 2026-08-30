@@ -16,12 +16,23 @@ let package = Package(
             type: .dynamic,
             targets: ["PlaybackProbe", "ProbeBootstrap"]
         ),
+        // Helpers for the test side: locating the injected library, building
+        // the launch environment and reading back what the probe recorded.
+        .library(name: "PlaybackProbeTestSupport", targets: ["PlaybackProbeTestSupport"]),
     ],
     targets: [
         // C shim holding the `__attribute__((constructor))` entry point.
         // Swift cannot override `+load`, so the entry point lives in C and
         // calls into Swift through an `@_cdecl` symbol.
         .target(name: "ProbeBootstrap"),
-        .target(name: "PlaybackProbe", dependencies: ["ProbeBootstrap"]),
+        // The wire contract: no AVFoundation, no platform assumptions, so the
+        // Android implementation can serve the same schema.
+        .target(name: "PlaybackProbeSchema"),
+        .target(name: "PlaybackProbe", dependencies: ["ProbeBootstrap", "PlaybackProbeSchema"]),
+        .target(name: "PlaybackProbeTestSupport", dependencies: ["PlaybackProbeSchema"]),
+        .testTarget(
+            name: "PlaybackProbeTests",
+            dependencies: ["PlaybackProbeSchema", "PlaybackProbeTestSupport"]
+        ),
     ]
 )

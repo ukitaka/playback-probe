@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import PlaybackProbeSchema
 import ProbeBootstrap
 
 /// Observes every `AVPlayer` in the host process and records what it sees.

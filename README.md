@@ -50,22 +50,39 @@ single-oracle setup lets one of these through.
 - iOS 16 or later, **simulator only**. A device rejects an injected library
   whose Team ID does not match the host application, and dyld silently ignores
   the environment variable.
-- Xcode 16 or later.
+- Developed and tested with Xcode 26 and Swift 6. Earlier versions are untried.
 
 ## Usage
 
-Add the package to the UI test target and inject it at launch:
+Link two products into the UI test target: `PlaybackProbe`, the dynamic library
+that gets injected, and `PlaybackProbeTestSupport`, the helpers that inject it.
 
 ```swift
+import PlaybackProbeTestSupport
+
+let logURL = try ProbeLogLocation.makeSharedLogURL()
 let application = XCUIApplication()
-application.launchEnvironment["DYLD_INSERT_LIBRARIES"] = probeLibraryPath
-application.launchEnvironment["PLAYBACK_PROBE_ENABLED"] = "1"
-application.launchEnvironment["PLAYBACK_PROBE_LOG_PATH"] = logPath
+application.launchEnvironment.merge(try ProbeLaunchEnvironment.make(logURL: logURL)) { _, new in new }
 application.launch()
+
+let log = ProbeEventLog(url: logURL)
 ```
 
 The application under test needs no source changes: dyld runs the library's
 initialiser before `main()`, so the probe starts on its own.
+
+`ProbeLaunchEnvironment` fills in `DYLD_INSERT_LIBRARIES` by asking dyld which
+image defines the probe's entry point, so it does not depend on where the build
+put the library. `ProbeLogLocation` picks a path in the simulator device's
+shared directory, because the application and the test runner have separate
+containers.
+
+Then assert on what the probe recorded:
+
+```swift
+let events = try log.waitForEvents { $0.events(of: .sample).contains { $0.playerState == .playing } }
+XCTAssertTrue(events.isPlaybackPositionAdvancing())
+```
 
 The probe appends observations to `PLAYBACK_PROBE_LOG_PATH` as JSON Lines,
 which the test reads while the application is still running:
@@ -98,6 +115,17 @@ Package Manager integration cannot link a package for some build configurations
 only, so if the probe must not ship at all, link it from a separate UI-test host
 target rather than from the application.
 
+## Package layout
+
+| Product | Linked into | Purpose |
+|---|---|---|
+| `PlaybackProbe` | the test target, injected into the app | The probe itself. Dynamic, so dyld can load it. |
+| `PlaybackProbeTestSupport` | the test target | Locating the library, building the launch environment, reading the log. |
+
+`PlaybackProbeSchema` underneath both holds the wire types and carries no
+platform assumptions, so the planned Android implementation can serve the same
+schema.
+
 ## Example
 
 `Examples/DemoApp` is a small application whose player is deliberately hidden
@@ -113,6 +141,42 @@ xcodegen generate
 xcodebuild test -project PlaybackProbeDemo.xcodeproj -scheme PlaybackProbeDemo \
   -destination 'platform=iOS Simulator,name=iPhone 17'
 ```
+
+## How soon can a test assert?
+
+A test that taps something and immediately asserts "playback stopped" is only
+sound if the stop is already observable. Measured on the demo with
+`PauseLatencyMeasurementTests`: 12 pause cycles per row across two runs, with
+the moment of the pause randomised against the sampling timer so that the
+measurement does not sit at one fixed phase.
+
+| Sampling interval | Observable after `tap()` is called | Relative to `tap()` returning |
+|---|---|---|
+| 50ms | 128–248ms | −177 to −143ms |
+| 200ms | 144–304ms | −174 to −4ms |
+| 500ms (probe default) | 141–624ms | −178 to **+279ms** |
+
+Figures are from an M-series Mac; a loaded machine will be slower.
+
+Two things follow.
+
+The pause itself is fast: about 140ms, most of which is XCUITest delivering the
+tap. What a test waits for on top of that is the next sampling tick, which is
+why the spread widens exactly in step with the interval.
+
+XCUITest's own `tap()` takes around 310ms to return. At 200ms sampling or below,
+the stop is therefore already in the log by the time the test regains control,
+and "tap, then assert" is safe with no sleep at all. At the probe's 500ms
+default it is not: the worst case observed landed 279ms *after* `tap()`
+returned, which is a real flake. This is why `ProbeLaunchEnvironment` uses 200ms
+rather than inheriting the probe's default.
+
+Note the margin at 200ms is only a few milliseconds in the worst case, so a test
+doing something faster than a tap, or running on a slower machine, should either
+drop to 50ms sampling or wait explicitly.
+
+These figures cover the state and time oracles only. The audio oracle will add
+the buffer still draining after a pause, which is a separate and larger delay.
 
 ## Known limits
 

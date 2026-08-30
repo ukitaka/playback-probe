@@ -1,5 +1,6 @@
 import Foundation
 import os
+import PlaybackProbeSchema
 
 /// Serialises probe events to the unified log and, when configured, appends
 /// them to a JSON Lines file.

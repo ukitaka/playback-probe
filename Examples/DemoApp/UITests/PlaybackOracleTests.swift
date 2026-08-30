@@ -1,4 +1,5 @@
-import PlaybackProbe
+import PlaybackProbeSchema
+import PlaybackProbeTestSupport
 import XCTest
 
 /// Covers the state and time oracles: what the probe reports while the player
@@ -16,9 +17,9 @@ final class PlaybackOracleTests: XCTestCase {
         try super.setUpWithError()
         continueAfterFailure = false
 
-        let logURL = try ProbeInjection.makeLogURL()
+        let logURL = try ProbeLogLocation.makeSharedLogURL()
         log = ProbeEventLog(url: logURL)
-        application = try ProbeInjection.makeApplication(logURL: logURL)
+        application = try XCUIApplication.withProbe(logURL: logURL)
         application.launch()
     }
 
@@ -69,7 +70,7 @@ final class PlaybackOracleTests: XCTestCase {
 
     private func startPlayback() {
         application.buttons[DemoIdentifier.playButton].tap()
-        log.waitForEvents(description: "playback to start") {
+        log.waitForEvents(describedAs: "playback to start") {
             $0.events(of: .sample).contains { $0.playerState == .playing }
         }
     }

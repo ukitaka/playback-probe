@@ -1,4 +1,5 @@
-import PlaybackProbe
+import PlaybackProbeSchema
+import PlaybackProbeTestSupport
 import XCTest
 
 /// Covers the injection path: the library is loaded by dyld, its constructor
@@ -10,15 +11,15 @@ final class ProbeInjectionTests: XCTestCase {
     override func setUpWithError() throws {
         try super.setUpWithError()
         continueAfterFailure = false
-        logURL = try ProbeInjection.makeLogURL()
+        logURL = try ProbeLogLocation.makeSharedLogURL()
         log = ProbeEventLog(url: logURL)
     }
 
     func testProbeStartsFromLoadTimeConstructor() throws {
-        let application = try ProbeInjection.makeApplication(logURL: logURL)
+        let application = try XCUIApplication.withProbe(logURL: logURL)
         application.launch()
 
-        let events = log.waitForEvents(description: "the probe start event") {
+        let events = log.waitForEvents(describedAs: "the probe start event") {
             !$0.events(of: .probeStarted).isEmpty
         }
 
@@ -31,12 +32,12 @@ final class ProbeInjectionTests: XCTestCase {
     }
 
     func testProbeAttachesToPlayerHiddenInsideSDK() throws {
-        let application = try ProbeInjection.makeApplication(logURL: logURL)
+        let application = try XCUIApplication.withProbe(logURL: logURL)
         application.launch()
 
         application.buttons[DemoIdentifier.playButton].tap()
 
-        let events = log.waitForEvents(description: "a player to be attached") {
+        let events = log.waitForEvents(describedAs: "a player to be attached") {
             !$0.events(of: .playerAttached).isEmpty
         }
 
@@ -47,11 +48,8 @@ final class ProbeInjectionTests: XCTestCase {
     func testProbeStaysInertWhenNotEnabled() throws {
         // The guard that keeps an accidentally linked probe from doing anything
         // in a production build.
-        let application = XCUIApplication()
-        application.launchEnvironment[ProbeInjection.insertLibrariesKey] = try ProbeInjection
-            .probeLibraryURL().path
-        application.launchEnvironment[ProbeConfiguration.logPathKey] = logURL.path
-        // PLAYBACK_PROBE_ENABLED deliberately omitted.
+        // PLAYBACK_PROBE_ENABLED is deliberately not set.
+        let application = try XCUIApplication.withProbeLoadedButDisabled(logURL: logURL)
         application.launch()
 
         application.buttons[DemoIdentifier.playButton].tap()

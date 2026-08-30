@@ -25,23 +25,26 @@ fi
 
 failed=0
 
-# Modern ld64 rewrites __DATA,__mod_init_func into __TEXT,__init_offsets.
-# Accept either spelling.
-if otool -l "$dylib" | grep -qE '__init_offsets|__mod_init_func'; then
+# Read each tool's output once. Piping into `grep -q` would let grep exit early,
+# hand the tool a SIGPIPE, and trip `pipefail` on a check that actually passed.
+load_commands=$(otool -l "$dylib")
+symbols=$(nm "$dylib")
+
+if grep -qE '__init_offsets|__mod_init_func' <<<"$load_commands"; then
     echo "ok: image has an initialiser section"
 else
     echo "FAIL: image has no initialiser section; the constructor was stripped" >&2
     failed=1
 fi
 
-if nm "$dylib" | grep -qE '_playback_probe_bootstrap$'; then
+if grep -qE '_playback_probe_bootstrap$' <<<"$symbols"; then
     echo "ok: bootstrap constructor is present"
 else
     echo "FAIL: bootstrap constructor symbol is missing" >&2
     failed=1
 fi
 
-if nm -gU "$dylib" | grep -qE '_playback_probe_start$'; then
+if grep -qE '_playback_probe_start$' <<<"$symbols"; then
     echo "ok: Swift entry point is exported"
 else
     echo "FAIL: playback_probe_start is not exported" >&2
