@@ -182,6 +182,15 @@ sound if the stop is already observable. Measured on the demo with
 the moment of the pause randomised against the sampling timer so that the
 measurement does not sit at one fixed phase.
 
+```console
+TEST_RUNNER_PLAYBACK_PROBE_MEASURE=1 Scripts/run-demo-tests.sh \
+  -only-testing:PlaybackProbeDemoUITests/PauseLatencyMeasurementTests
+```
+
+It is opt-in: it takes about a minute, and it reports figures rather than
+enforcing a budget, since any tight bound on a timing number would itself become
+flaky on a loaded machine.
+
 | Sampling interval | Observable after `tap()` is called | Relative to `tap()` returning |
 |---|---|---|
 | 50ms | 128–248ms | −177 to −143ms |

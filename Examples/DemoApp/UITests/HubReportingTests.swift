@@ -16,10 +16,11 @@ final class HubReportingTests: XCTestCase {
         try super.setUpWithError()
         continueAfterFailure = false
 
-        client = try XCTUnwrap(
-            PlaybackStatusClient.fromEnvironment(),
-            "No hub configured for this run"
-        )
+        // Skipped, not failed: a plain `xcodebuild test` runs without a hub,
+        // and these are the only tests that need one.
+        let configured = PlaybackStatusClient.fromEnvironment()
+        try XCTSkipIf(configured == nil, "No hub was configured for this run")
+        client = configured
         try XCTSkipUnless(isHubReachable(), "No hub is listening at \(client.baseURL)")
 
         // Otherwise the previous test's playback is still inside the window.
@@ -66,6 +67,13 @@ final class HubReportingTests: XCTestCase {
         Thread.sleep(forTimeInterval: 1)
         let status = try client.status()
         XCTAssertEqual(status.isPlaying, true, "The leaky overlay is expected to leave the player running")
+    }
+
+    override func tearDown() {
+        // Otherwise the previous test's application keeps sampling into the
+        // next one's window.
+        application?.terminate()
+        super.tearDown()
     }
 
     private func isHubReachable() -> Bool {

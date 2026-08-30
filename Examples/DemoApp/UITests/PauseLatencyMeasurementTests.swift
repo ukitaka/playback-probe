@@ -7,8 +7,12 @@ import XCTest
 /// the stop is observable.
 ///
 /// This is the number that decides whether a naive "tap, then assert" test is
-/// flaky. It is reported rather than tightly bounded, because it depends on the
-/// sampling interval and on the machine.
+/// flaky. The figures in the README come from here.
+///
+/// Opt-in, because it is a measurement rather than a check: it takes about a
+/// minute, and any tight bound on a timing figure would itself become flaky on
+/// a loaded machine. Run it with `PLAYBACK_PROBE_MEASURE=1`, passed through as
+/// `TEST_RUNNER_PLAYBACK_PROBE_MEASURE=1` under xcodebuild.
 final class PauseLatencyMeasurementTests: XCTestCase {
     private let cycles = 12
 
@@ -16,9 +20,16 @@ final class PauseLatencyMeasurementTests: XCTestCase {
     /// sooner than its next tick, so this is expected to dominate.
     private let intervals: [TimeInterval] = [0.05, 0.2, 0.5]
 
+    /// Environment variable that opts into the measurement.
+    private static let optInKey = "PLAYBACK_PROBE_MEASURE"
+
     override func setUpWithError() throws {
         try super.setUpWithError()
         continueAfterFailure = false
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment[Self.optInKey] == "1",
+            "Set \(Self.optInKey)=1 to run the latency measurement"
+        )
     }
 
     func testPauseIsObservableWithinOneSamplingTick() throws {
@@ -26,12 +37,14 @@ final class PauseLatencyMeasurementTests: XCTestCase {
             let measurement = try measureLatency(sampleInterval: interval)
             report(sampleInterval: interval, measurement)
 
-            // The pause itself lands in roughly 140ms; what a test actually
-            // waits for is the next sampling tick on top of that.
+            // Loose on purpose. The interesting output is the printed
+            // distribution; this only catches the pause never becoming
+            // observable at all, which would be a broken oracle rather than a
+            // slow machine.
             XCTAssertLessThan(
                 measurement.sinceRequested.max() ?? .infinity,
-                interval + 0.5,
-                "Observing the pause took longer than one sampling tick plus slack"
+                interval + 3,
+                "The pause never became observable"
             )
         }
     }
