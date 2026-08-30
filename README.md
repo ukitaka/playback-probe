@@ -37,7 +37,7 @@ several independent ones. Each catches bugs the others miss.
 |---|---|---|---|
 | State | `AVPlayer.timeControlStatus` | The player intends to be stopped | Implemented |
 | Time | `AVPlayer.currentTime()`, sampled repeatedly | The playback position is not moving | Implemented |
-| Audio | Core Audio process tap on the simulator's output | Nothing is reaching the speaker | Hub ready, tap planned |
+| Audio | Core Audio process tap on the Mac's output | Nothing is reaching the speaker | Implemented |
 | Video | Frame differencing via `AVPlayerItemVideoOutput` | Rendering is not advancing | Planned |
 
 Why more than one: a player whose state says `paused` while a second instance
@@ -149,6 +149,7 @@ target rather than from the application.
 | `PlaybackProbeXCTest` | the test target | XCTest assertions over the above. Separate so `PlaybackProbeTestSupport` stays usable without XCTest. |
 | `PlaybackProbeHub` | the host-side application | The aggregation point and its HTTP endpoint. |
 | `playback-probe-hub` | run on the host | The hub without a user interface, for CI and for scripts. |
+| `PlaybackProbeAudio` | the host-side application | The Core Audio tap behind the audio oracle. |
 
 `PlaybackProbeSchema` underneath both holds the wire types and carries no
 platform assumptions, so the planned Android implementation can serve the same
@@ -266,6 +267,7 @@ design — the application under test still needs no changes.
 | `GET /playback-status?window=1000` | Every oracle plus whether they agree. The one a test needs. |
 | `GET /audio-active?window=1500` | Whether sound reached the output during the window. |
 | `GET /level` | The most recent audio level. For watching a tap work. |
+| `GET /health` | Whether an audio tap is attached, which the level history cannot tell you. |
 | `GET /events?limit=20` | Raw events as received, with the hub's clock. For finding out why a status is empty. |
 | `POST /player-state` | Where the probe reports. |
 | `POST /audio-level` | Where an audio tap reports. |
@@ -287,6 +289,61 @@ compares only the oracles that have an opinion, and disagreement between them is
 the finding, not an error — a player reporting `paused` while sound keeps coming
 is the bug no single oracle catches.
 
+## The audio oracle
+
+The other oracles ask the player about itself. This one watches the sound
+leaving the Mac, which is the only evidence a lying player cannot produce: a
+second instance inside the same SDK can keep making noise while the one the
+probe found reports `paused`, and nothing inside the application would notice.
+
+```console
+PLAYBACK_PROBE_AUDIO=1 Scripts/run-demo-tests.sh
+```
+
+That starts the hub with a Core Audio process tap, so `/playback-status` gains
+an `audioActive` field.
+
+### Simulator.app has to be running
+
+**A simulator booted headlessly produces no sound at all.** `xcodebuild test`
+boots one that way, and the tap then correctly reports silence for a video that
+is plainly playing — a false pass of exactly the kind this toolkit exists to
+prevent. `Scripts/run-demo-tests.sh` opens Simulator.app when audio is enabled.
+
+### Which process makes the sound
+
+An application running in a simulator appears in the host's Core Audio under
+its own bundle identifier, once it is running:
+
+```console
+swift run playback-probe-hub --list-audio-processes
+```
+
+The tap is system-wide by default, which always works but hears every other
+application too, so nothing else on the Mac may make a sound during a test.
+`--audio-process <fragment>` narrows it to processes whose bundle identifier
+contains the fragment. The process has to exist when the hub starts, and a
+simulated application's audio object only exists while it runs, so this suits a
+long-lived process better than an application relaunched per test.
+
+### Permission and its failure modes
+
+Tapping audio needs capture permission, which macOS grants per application
+bundle and asks for the first time a tap is created. A bare executable may
+therefore be refused, and `AudioTapError` says so rather than reporting silence.
+
+Two behaviours worth knowing, because both look like a stopped player:
+
+An output device with nothing to play does not run its callback at all, so a
+tap that has heard nothing yet records no levels. That is why the hub reports
+`audioTapAttached` on `/health` rather than inferring a running tap from its
+history, and why `audioActive` is absent rather than `false` when no level
+covers the window.
+
+The threshold separating sound from the noise floor is 0.01, roughly -40 dBFS.
+It was validated against a 440Hz tone on one machine; a different output device
+or volume may need a different value.
+
 ## Known limits
 
 - **Everything depends on catching the `AVPlayer`.** If the player renders
@@ -305,10 +362,14 @@ is the bug no single oracle catches.
 2. ~~State and time oracles, recorded to a log~~ — done
 3. ~~Hub, its HTTP endpoints and a Swift client for the test side~~ — done
 4. ~~Aggregate `/playback-status` with a cross-oracle consistency check~~ — done
-5. Host-side capture app: Core Audio process tap and RMS history
+5. ~~Audio oracle: Core Audio process tap and RMS history~~ — done
 6. Video oracle: `AVPlayerItemVideoOutput` frame differencing
-7. Android implementation behind the same schema
+7. A menu bar application, so the tap has a permanent bundle to hold its
+   permission and a level meter to watch
+8. Android implementation behind the same schema
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE). The Core Audio tap is derived from
+[AudioCap](https://github.com/insidegui/AudioCap); see
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

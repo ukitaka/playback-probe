@@ -17,7 +17,7 @@ struct HubRouter {
     func respond(to request: HTTPRequest) -> HTTPResponse {
         switch (request.method, request.path) {
         case ("GET", "/health"):
-            encode(["ok": true])
+            encode(["ok": true, "audioTapAttached": store.isAudioTapAttached])
 
         case ("GET", "/level"):
             level()

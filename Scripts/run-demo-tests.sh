@@ -15,6 +15,17 @@ set -euo pipefail
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 destination=${PLAYBACK_PROBE_DESTINATION:-platform=iOS Simulator,name=iPhone 17}
 port=${PLAYBACK_PROBE_HUB_PORT:-8642}
+# PLAYBACK_PROBE_AUDIO=1 also runs the audio oracle. It needs audio capture
+# permission, and the simulator only produces sound while Simulator.app is
+# running, so a headless boot is silent.
+audio_arguments=()
+if [[ "${PLAYBACK_PROBE_AUDIO:-0}" == "1" ]]; then
+    audio_arguments+=(--audio)
+    if [[ -n "${PLAYBACK_PROBE_AUDIO_PROCESS:-}" ]]; then
+        audio_arguments+=(--audio-process "$PLAYBACK_PROBE_AUDIO_PROCESS")
+    fi
+    open -a Simulator
+fi
 log=$(mktemp -t playback-probe-hub)
 
 cleanup() {
@@ -30,7 +41,7 @@ echo "==> Building the hub"
 swift build --package-path "$root" --product playback-probe-hub
 
 echo "==> Starting the hub on port $port"
-swift run --package-path "$root" playback-probe-hub --port "$port" >"$log" 2>&1 &
+swift run --package-path "$root" playback-probe-hub --port "$port" "${audio_arguments[@]}" >"$log" 2>&1 &
 hub_pid=$!
 
 # Wait for the line the hub prints once it is listening, rather than sleeping a

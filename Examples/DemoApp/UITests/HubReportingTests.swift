@@ -39,10 +39,13 @@ final class HubReportingTests: XCTestCase {
         let status = try client.waitUntilPlaying()
         XCTAssertEqual(status.playerState, .playing)
         XCTAssertEqual(status.currentTimeAdvancing, true)
-        // No audio oracle is running, so it must have no opinion rather than
-        // report silence, which would look like a stopped player.
-        XCTAssertNil(status.audioActive)
-        XCTAssertNil(status.videoAdvancing)
+        // An oracle that is not running must have no opinion rather than
+        // report silence, which would look like a stopped player. Whether the
+        // audio oracle is running depends on how the hub was started.
+        if try !client.health().isAudioTapAttached {
+            XCTAssertNil(status.audioActive)
+        }
+        XCTAssertNil(status.videoAdvancing, "The video oracle is not implemented yet")
         XCTAssertTrue(status.consistent)
     }
 

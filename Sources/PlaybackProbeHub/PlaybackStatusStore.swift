@@ -12,6 +12,19 @@ public final class PlaybackStatusStore: @unchecked Sendable {
 
     public let audioLevels: AudioLevelHistory
 
+    /// Whether a host-side audio tap has been attached to this hub.
+    ///
+    /// Cannot be inferred from the level history: an output device with nothing
+    /// to play does not run its callback at all, so a freshly started tap looks
+    /// identical to no tap until the first sound. The host that owns the tap
+    /// says so explicitly instead.
+    public var isAudioTapAttached: Bool {
+        get { lock.lock(); defer { lock.unlock() }; return audioTapAttached }
+        set { lock.lock(); audioTapAttached = newValue; lock.unlock() }
+    }
+
+    private var audioTapAttached = false
+
     private let lock = NSLock()
     private var recorded: [RecordedEvent] = []
     private let sampleLimit: Int

@@ -45,6 +45,16 @@ public struct PlaybackStatusClient: Sendable {
         return try JSONDecoder().decode(PlaybackStatus.self, from: data)
     }
 
+    /// What the hub reports about itself.
+    ///
+    /// `isAudioTapAttached` is the honest way to ask whether the audio oracle
+    /// is available. The level history cannot answer it: an idle output device
+    /// does not run its callback, so a working tap that has heard nothing yet
+    /// looks the same as no tap at all.
+    public func health() throws -> HubHealth {
+        try JSONDecoder().decode(HubHealth.self, from: send("health", method: "GET"))
+    }
+
     /// Clears every oracle's history. Call between tests so that one test's
     /// playback cannot satisfy the next test's assertion.
     public func reset() throws {
@@ -142,6 +152,17 @@ public struct PlaybackStatusClient: Sendable {
             )
         }
         return data
+    }
+}
+
+/// What the hub reports about itself.
+public struct HubHealth: Decodable, Sendable {
+    public var isReachable: Bool
+    public var isAudioTapAttached: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case isReachable = "ok"
+        case isAudioTapAttached = "audioTapAttached"
     }
 }
 
