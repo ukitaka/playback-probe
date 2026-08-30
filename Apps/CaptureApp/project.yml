@@ -1,0 +1,58 @@
+name: PlaybackProbeCapture
+
+options:
+  bundleIdPrefix: io.github.ukitaka
+  deploymentTarget:
+    macOS: "14.4"
+  createIntermediateGroups: true
+
+packages:
+  PlaybackProbe:
+    path: ../..
+
+targets:
+  PlaybackProbeCapture:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources
+    dependencies:
+      - package: PlaybackProbe
+        product: PlaybackProbeHub
+      - package: PlaybackProbe
+        product: PlaybackProbeAudio
+    entitlements:
+      path: Resources/CaptureApp.entitlements
+    info:
+      path: Resources/Info.plist
+      properties:
+        # Menu bar only: no Dock icon, no window on launch.
+        LSUIElement: true
+        CFBundleName: PlaybackProbe
+        # macOS asks for audio capture the first time a tap is created, and
+        # shows this. Both keys are present because the system has used each
+        # for this permission across releases.
+        NSMicrophoneUsageDescription: >-
+          PlaybackProbe listens to what this Mac is playing, so a UI test can
+          tell whether a video really stopped.
+        NSAudioCaptureUsageDescription: >-
+          PlaybackProbe listens to what this Mac is playing, so a UI test can
+          tell whether a video really stopped.
+    settings:
+      base:
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        ENABLE_HARDENED_RUNTIME: true
+        # Ad-hoc signed so it builds with no developer account. See the README
+        # for what that costs in permission stability.
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: ""
+
+schemes:
+  PlaybackProbeCapture:
+    build:
+      targets:
+        PlaybackProbeCapture: all
+    run:
+      config: Debug

@@ -89,6 +89,16 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      # Built but not run: the capture app is the audio oracle's permanent
+      # home, and a compile break in it would otherwise only surface on
+      # someone's desk.
+      - name: Build the capture app
+        run: |
+          cd Apps/CaptureApp
+          xcodegen generate
+          xcodebuild build -project PlaybackProbeCapture.xcodeproj \
+            -scheme PlaybackProbeCapture -destination 'platform=macOS'
+
       # The audio oracle is deliberately not exercised here. It needs audio
       # capture permission, which macOS only grants interactively, and a
       # simulator booted without Simulator.app produces no sound at all. Those

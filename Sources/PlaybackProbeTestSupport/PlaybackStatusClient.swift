@@ -159,10 +159,13 @@ public struct PlaybackStatusClient: Sendable {
 public struct HubHealth: Decodable, Sendable {
     public var isReachable: Bool
     public var isAudioTapAttached: Bool
+    /// Why the tap is not running, when something tried and failed.
+    public var audioTapError: String?
 
     private enum CodingKeys: String, CodingKey {
         case isReachable = "ok"
         case isAudioTapAttached = "audioTapAttached"
+        case audioTapError
     }
 }
 

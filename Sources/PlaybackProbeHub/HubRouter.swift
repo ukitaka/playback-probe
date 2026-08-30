@@ -17,7 +17,7 @@ struct HubRouter {
     func respond(to request: HTTPRequest) -> HTTPResponse {
         switch (request.method, request.path) {
         case ("GET", "/health"):
-            encode(["ok": true, "audioTapAttached": store.isAudioTapAttached])
+            health()
 
         case ("GET", "/level"):
             level()
@@ -60,6 +60,28 @@ struct HubRouter {
             return PlaybackStatusStore.defaultWindow
         }
         return milliseconds / 1000
+    }
+
+    private func health() -> HTTPResponse {
+        struct Payload: Encodable {
+            var isReachable: Bool
+            var audioTapAttached: Bool
+            var audioTapError: String?
+
+            enum CodingKeys: String, CodingKey {
+                case isReachable = "ok"
+                case audioTapAttached
+                case audioTapError
+            }
+        }
+        guard let data = try? encoder.encode(Payload(
+            isReachable: true,
+            audioTapAttached: store.isAudioTapAttached,
+            audioTapError: store.audioTapError
+        )) else {
+            return .error(400, "could not encode the health report")
+        }
+        return .json(data)
     }
 
     private func limit(from request: HTTPRequest) -> Int {

@@ -23,7 +23,18 @@ public final class PlaybackStatusStore: @unchecked Sendable {
         set { lock.lock(); audioTapAttached = newValue; lock.unlock() }
     }
 
+    /// Why the audio tap is not running, when something tried and failed.
+    ///
+    /// Reported through the hub because that is the one place everything else
+    /// already looks. A refused tap is otherwise visible only to whoever is
+    /// sitting in front of the machine, which is no use to a test run.
+    public var audioTapError: String? {
+        get { lock.lock(); defer { lock.unlock() }; return tapError }
+        set { lock.lock(); tapError = newValue; lock.unlock() }
+    }
+
     private var audioTapAttached = false
+    private var tapError: String?
 
     private let lock = NSLock()
     private var recorded: [RecordedEvent] = []
