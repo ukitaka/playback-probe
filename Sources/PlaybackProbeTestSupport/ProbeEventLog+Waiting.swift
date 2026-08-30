@@ -2,10 +2,14 @@ import Foundation
 import PlaybackProbeSchema
 
 public extension ProbeEventLog {
-    /// How long to keep polling before giving up. Generous relative to the
-    /// measured observation latency, because a timeout here means something is
-    /// wrong rather than slow.
-    static let defaultTimeout: TimeInterval = 5
+    /// How long to keep polling before giving up.
+    ///
+    /// Deliberately far longer than the measured observation latency. Reaching
+    /// this means something is broken rather than slow, so there is nothing to
+    /// gain from a tight value and a loaded machine to lose to it: at five
+    /// seconds, a CI runner starting an application under load timed out with
+    /// no samples at all.
+    static let defaultTimeout: TimeInterval = 15
 
     /// How much uninterrupted evidence a verdict needs.
     ///

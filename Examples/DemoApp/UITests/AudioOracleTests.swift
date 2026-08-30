@@ -20,12 +20,14 @@ final class AudioOracleTests: XCTestCase {
         let configured = PlaybackStatusClient.fromEnvironment()
         try XCTSkipIf(configured == nil, "No hub was configured for this run")
         client = configured
-        try client.reset()
 
-        try XCTSkipUnless(
-            client.health().isAudioTapAttached,
-            "The hub has no audio tap attached"
-        )
+        // Reachability first. Touching the hub before knowing it is there turns
+        // "no hub, so skip" into a failure.
+        let health = try? client.health()
+        try XCTSkipIf(health == nil, "No hub is listening at \(client.baseURL)")
+        try XCTSkipUnless(health?.isAudioTapAttached == true, "The hub has no audio tap attached")
+
+        try client.reset()
 
         application = try XCUIApplication.withProbe(
             logURL: ProbeLogLocation.makeSharedLogURL(),
